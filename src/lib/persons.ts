@@ -1,6 +1,6 @@
 import { eq, and, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { persons, couples, parentChild } from "@/db/schema";
+import { trees, persons, couples, parentChild } from "@/db/schema";
 import { personInput, addRelativeInput, addChildToCoupleInput, connectParentInput } from "./validation";
 import type { TreeContext } from "./auth";
 import type { PersonInput } from "./validation";
@@ -11,14 +11,15 @@ import type { PersonInput } from "./validation";
 
 export class MutationError extends Error {}
 
-/** Load a whole tree in 2 queries (perf review: never N+1 per node). */
+/** Load a whole tree (name + people + edges) in a few queries (perf review: never N+1). */
 export async function getTree(treeId: string) {
-  const [people, coupleRows, pcRows] = await Promise.all([
+  const [meta, people, coupleRows, pcRows] = await Promise.all([
+    db.select({ name: trees.name }).from(trees).where(eq(trees.id, treeId)).limit(1),
     db.select().from(persons).where(eq(persons.treeId, treeId)),
     db.select().from(couples).where(eq(couples.treeId, treeId)),
     db.select().from(parentChild).where(eq(parentChild.treeId, treeId)),
   ]);
-  return { persons: people, couples: coupleRows, parentChild: pcRows };
+  return { name: meta[0]?.name ?? "", persons: people, couples: coupleRows, parentChild: pcRows };
 }
 
 // Cycle guard (eng-review + design-review): adding parent->child must never make

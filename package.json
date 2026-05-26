@@ -15,6 +15,8 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
+    "@xyflow/react": "^12.10.2",
+    "d3-force": "^3.0.0",
     "drizzle-orm": "^0.45.2",
     "nanoid": "^5.1.11",
     "next": "16.2.6",
@@ -24,6 +26,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.4.6",
+    "@types/d3-force": "^3.0.10",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
