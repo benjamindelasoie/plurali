@@ -34,3 +34,21 @@ export const addRelativeInput = z.object({
   relation: relationshipKind.nullish(), // how they connect
 });
 export type AddRelativeInput = z.infer<typeof addRelativeInput>;
+
+// Union-first child creation (handles remarriage + two parents + half-siblings).
+// Add a NEW child to an existing marriage/couple — both spouses become parents, and
+// "which marriage" is explicit (the chosen couple). Half-siblings fall out because a
+// person's other children come from their OTHER couples.
+export const addChildToCoupleInput = z.object({
+  coupleId: z.string().uuid(),
+  child: personInput,
+});
+export type AddChildToCoupleInput = z.infer<typeof addChildToCoupleInput>;
+
+// Connect an EXISTING person as a parent of an existing child (single/unknown parent,
+// or attaching the second parent after the fact). Subject to the cycle guard.
+export const connectParentInput = z.object({
+  parentId: z.string().uuid(),
+  childId: z.string().uuid(),
+});
+export type ConnectParentInput = z.infer<typeof connectParentInput>;

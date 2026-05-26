@@ -9,7 +9,7 @@ vi.mock("@/db", async () => {
 import { migrate, reset, testDb } from "./db";
 import { createTree } from "@/lib/links";
 import { requireTreeContext, type TreeContext } from "@/lib/auth";
-import { addPerson, addRelative, editPerson, getTree, wouldCreateCycle } from "@/lib/persons";
+import { addPerson, addRelative, addChildToCouple, connectParent, editPerson, getTree, wouldCreateCycle } from "@/lib/persons";
 import { persons, parentChild } from "@/db/schema";
 
 beforeAll(() => migrate());
@@ -97,5 +97,58 @@ describe("person mutations (T4)", () => {
       // self-parenting is always a cycle
       expect(await wouldCreateCycle(ctx.treeId, A.id, A.id)).toBe(true);
     });
+  });
+});
+
+describe("remarriage, two parents & half-siblings (union-first)", () => {
+  it("models a child of a second marriage with the correct two parents", async () => {
+    const ctx = await freshTree();
+    const father = await addPerson(ctx, { name: "Pedro" });
+    const wife1 = await addRelative(ctx, { person: { name: "Primera Esposa" }, relationTo: father.id, relation: "partner" });
+    const wife2 = await addRelative(ctx, { person: { name: "Segunda Esposa" }, relationTo: father.id, relation: "partner" });
+
+    const { couples } = await getTree(ctx.treeId);
+    expect(couples).toHaveLength(2); // father is in TWO marriages
+    const members = (c: { personA: string; personB: string }) => [c.personA, c.personB];
+    const couple1 = couples.find((c) => members(c).includes(wife1.id))!;
+    const couple2 = couples.find((c) => members(c).includes(wife2.id))!;
+
+    const halfSib = await addChildToCouple(ctx, { coupleId: couple1.id, child: { name: "Media Hermana" } });
+    const me = await addChildToCouple(ctx, { coupleId: couple2.id, child: { name: "Yo" } }); // child of the 2nd marriage
+
+    const { parentChild } = await getTree(ctx.treeId);
+    const parentsOf = (id: string) => parentChild.filter((e) => e.childId === id).map((e) => e.parentId).sort();
+
+    // each child has exactly the two parents of THEIR marriage
+    expect(parentsOf(halfSib.id)).toEqual([father.id, wife1.id].sort());
+    expect(parentsOf(me.id)).toEqual([father.id, wife2.id].sort());
+
+    // half-siblings: share the father, differ on the mother
+    const sharedFather = parentsOf(halfSib.id).includes(father.id) && parentsOf(me.id).includes(father.id);
+    expect(sharedFather).toBe(true);
+    expect(parentsOf(halfSib.id).includes(wife2.id)).toBe(false);
+    expect(parentsOf(me.id).includes(wife1.id)).toBe(false);
+  });
+
+  it("connectParent links an existing second parent and is idempotent", async () => {
+    const ctx = await freshTree();
+    const dad = await addPerson(ctx, { name: "Papá" });
+    const mom = await addPerson(ctx, { name: "Mamá" });
+    const kid = await addRelative(ctx, { person: { name: "Nene" }, relationTo: dad.id, relation: "child" });
+
+    await connectParent(ctx, { parentId: mom.id, childId: kid.id });
+    await connectParent(ctx, { parentId: mom.id, childId: kid.id }); // idempotent — no dup edge
+
+    const { parentChild } = await getTree(ctx.treeId);
+    const parents = parentChild.filter((e) => e.childId === kid.id).map((e) => e.parentId).sort();
+    expect(parents).toEqual([dad.id, mom.id].sort());
+  });
+
+  it("connectParent rejects a cycle", async () => {
+    const ctx = await freshTree();
+    const a = await addPerson(ctx, { name: "A" });
+    const b = await addRelative(ctx, { person: { name: "B" }, relationTo: a.id, relation: "child" }); // A parent of B
+    // making B a parent of A would close A->B->A
+    await expect(connectParent(ctx, { parentId: b.id, childId: a.id })).rejects.toBeTruthy();
   });
 });

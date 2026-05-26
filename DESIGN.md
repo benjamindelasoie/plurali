@@ -92,6 +92,13 @@ on the terracotta hue alone. *(plan-design-review fix.)*
   eng-review (which had pencilled "simple view / family-chart-or-d3-dag"). The static reference
   at `~/.gstack/projects/plurali/designs/tree-20260525/finalized.html` is the visual target,
   not the implementation — the hand-rolled SVG there is replaced by React Flow.
+  - **Structured-layout fallback/toggle = `d3-dag`** (NOT d3-hierarchy). Genealogy is a DAG
+    (two parents per child); d3-dag lays out DAGs correctly where d3-hierarchy assumes a strict
+    tree and breaks. Offer it as a "tidy" toggle beside the organic d3-force default.
+  - **Graph algorithms = `graphology`** — for ancestor/descendant traversals, the cycle guard
+    (would replace the hand-rolled BFS in `src/lib/persons.ts`), and the V1 merge.
+  - **`elkjs`** — layered-layout option for the V1 accessible hierarchical backbone view.
+  - *(Sources vetted from xyflow/awesome-node-based-uis.)*
 - **Edges:** olive hand-weight strokes, gently curved. Couple links heavier (~2.4px);
   parent-child thinner (~1.6px); **unknown/missing parent = dotted** = an invitation
   (*"alguien la recuerda — agregá lo que sepas"*).
@@ -159,3 +166,4 @@ Every state in the fieldbook voice — no cold `"No se encontró nada."` default
 | 2026-05-25 | Full interaction-state spec adopted | Loading/empty/error/save-failure specified in fieldbook voice (see Interaction States) so no cold defaults ship. |
 | 2026-05-25 | Contribution is desktop-primary; mobile = lighter secondary view | Corrects earlier "mobile = the contribution surface." Desktop graph + editable focused card is the main contribution UI; mobile gets a designed single-column add-person form. |
 | 2026-05-25 | Graph keyboard/screen-reader a11y deferred to V1 | User chose to ship the mesh mouse/touch-only in V0; semantic linear/nested backbone is the V1 fix (tracked in TODOS.md). Known accessibility gap. |
+| 2026-05-25 | Union-first child model (remarriage / half-siblings) | Prompted by the founder being a child of his father's 2nd marriage. Add a child to a CHOSEN marriage (couple) → both parents linked + which-union explicit; `connectParent` links existing/2nd/unknown parents. Half-siblings derive naturally. Schema unchanged (already a graph); built addChildToCouple + connectParent + tests. UI implication: the add-child form must let you pick WHICH marriage when a parent has more than one. |

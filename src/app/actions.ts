@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { requireTreeContext, requireOwner, TokenError } from "@/lib/auth";
-import { addPerson, addRelative, editPerson, getTree, MutationError } from "@/lib/persons";
+import { addPerson, addRelative, addChildToCouple, connectParent, editPerson, getTree, MutationError } from "@/lib/persons";
 import { createTree, mintContributeLink, revokeLink } from "@/lib/links";
 
 // Thin "use server" wrappers over the service layer. Every action that mutates a
@@ -60,6 +60,28 @@ export async function editPersonAction(token: string, personId: string, input: u
     const ctx = await requireTreeContext(token);
     const p = await editPerson(ctx, personId, input);
     return { ok: true, data: { id: p.id } };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Add a child to a marriage (both parents linked) — handles remarriage / two parents. */
+export async function addChildToCoupleAction(token: string, input: unknown): Promise<ActionResult<{ id: string }>> {
+  try {
+    const ctx = await requireTreeContext(token);
+    const c = await addChildToCouple(ctx, input);
+    return { ok: true, data: { id: c.id } };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Connect an existing person as a parent (single/unknown parent, or the 2nd parent). */
+export async function connectParentAction(token: string, input: unknown): Promise<ActionResult<true>> {
+  try {
+    const ctx = await requireTreeContext(token);
+    await connectParent(ctx, input);
+    return { ok: true, data: true };
   } catch (e) {
     return fail(e);
   }

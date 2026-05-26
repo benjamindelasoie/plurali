@@ -1,7 +1,7 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { persons, couples, parentChild } from "@/db/schema";
-import { personInput, addRelativeInput } from "./validation";
+import { personInput, addRelativeInput, addChildToCoupleInput, connectParentInput } from "./validation";
 import type { TreeContext } from "./auth";
 import type { PersonInput } from "./validation";
 
@@ -126,4 +126,58 @@ export async function editPerson(ctx: TreeContext, personId: string, rawInput: u
     .returning();
   if (!p) throw new MutationError("No se encontró la persona.");
   return p;
+}
+
+/**
+ * Add a NEW child to an existing marriage/couple — both spouses become parents, and
+ * the union is explicit (handles remarriage: pick WHICH marriage). Half-siblings fall
+ * out naturally because a parent's other children come from their other couples.
+ * A brand-new child can't create a cycle, so no guard needed here.
+ */
+export async function addChildToCouple(ctx: TreeContext, rawInput: unknown) {
+  const { coupleId, child } = addChildToCoupleInput.parse(rawInput);
+  const [couple] = await db
+    .select()
+    .from(couples)
+    .where(and(eq(couples.id, coupleId), eq(couples.treeId, ctx.treeId)))
+    .limit(1);
+  if (!couple) throw new MutationError("No se encontró ese matrimonio.");
+
+  const [c] = await db
+    .insert(persons)
+    .values({ ...fields(ctx.treeId, child), createdByLinkId: ctx.linkId })
+    .returning();
+  await db.insert(parentChild).values([
+    { treeId: ctx.treeId, parentId: couple.personA, childId: c.id, createdByLinkId: ctx.linkId },
+    { treeId: ctx.treeId, parentId: couple.personB, childId: c.id, createdByLinkId: ctx.linkId },
+  ]);
+  return c;
+}
+
+/**
+ * Connect an EXISTING person as a parent of an existing child (single/unknown parent,
+ * or attaching the 2nd parent after the fact). Cycle-guarded and idempotent.
+ */
+export async function connectParent(ctx: TreeContext, rawInput: unknown) {
+  const { parentId, childId } = connectParentInput.parse(rawInput);
+  if (parentId === childId) throw new MutationError("Una persona no puede ser su propio padre o madre.");
+
+  const found = await db
+    .select({ id: persons.id })
+    .from(persons)
+    .where(and(eq(persons.treeId, ctx.treeId), inArray(persons.id, [parentId, childId])));
+  if (found.length < 2) throw new MutationError("No se encontró la persona.");
+
+  if (await wouldCreateCycle(ctx.treeId, parentId, childId)) {
+    throw new MutationError("Eso crearía un ciclo en el árbol.");
+  }
+
+  const [existing] = await db
+    .select({ id: parentChild.id })
+    .from(parentChild)
+    .where(and(eq(parentChild.treeId, ctx.treeId), eq(parentChild.parentId, parentId), eq(parentChild.childId, childId)))
+    .limit(1);
+  if (existing) return; // idempotent — edge already there
+
+  await db.insert(parentChild).values({ treeId: ctx.treeId, parentId, childId, createdByLinkId: ctx.linkId });
 }
