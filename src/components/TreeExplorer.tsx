@@ -178,7 +178,7 @@ function DetailCard({
       <button
         onClick={onClose}
         aria-label="cerrar"
-        style={{ position: "absolute", top: 12, right: 14, border: "none", background: "none", color: "var(--muted)", cursor: "pointer", fontSize: 16 }}
+        style={{ position: "absolute", top: 8, right: 8, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", border: "none", background: "none", color: "var(--muted)", cursor: "pointer", fontSize: 20, lineHeight: 1 }}
       >
         ×
       </button>

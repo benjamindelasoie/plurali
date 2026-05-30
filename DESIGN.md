@@ -129,6 +129,22 @@ on the terracotta hue alone. *(plan-design-review fix.)*
   "agregar a alguien aquí."
 - **Max content width (forms/cards):** ~640px. **Border radius:** card 14px, chips 999px.
 
+## Buttons & Form Controls (added T5-B, 2026-05-30)
+The canvas stays chrome-free, but contribution forms (create-tree, reveal, focused-card
+add/edit) need real controls. All implemented in `src/app/globals.css` as `.pl-*`.
+- **Primary button** (`.pl-btn`): filled **vine** `#5C6B3E`, cream text, radius 10px,
+  weight 600. NO gradient, NO bubble radius. `--ghost` variant = transparent + vine text.
+  Primary actions are vine, never terracotta (terracotta stays freshness-only).
+- **Text action** (`.pl-act`): the quiet olive link, e.g. "+ agregar familiar", "editar
+  sus datos", "Copiar". Carries a **persistent faint underline** (no hover-to-discover —
+  touch devices and older eyes never see hover). Full underline on hover.
+- **Inputs** (`.pl-field` / `.pl-input`): underline, not boxed. The one big **name input**
+  (`.pl-input--name`) is Fraunces 24px. Labels are Literata italic, muted.
+- **Chips** (`.pl-chip`, radius 999px): relationship and union choices; pressed = vine tint.
+- **Toggle** (`.pl-toggle`): the `vive` switch. **Link slip** (`.pl-slip`): dashed "tear-off"
+  frame for a shareable URL.
+- Focus-visible rings on all controls; `prefers-reduced-motion` disables fades/transitions.
+
 ## Motion
 - **Approach:** intentional, in service of "alive."
 - **Graph:** gentle settle/drift physics; new connections **draw in** (stroke reveal);
@@ -167,3 +183,5 @@ Every state in the fieldbook voice — no cold `"No se encontró nada."` default
 | 2026-05-25 | Contribution is desktop-primary; mobile = lighter secondary view | Corrects earlier "mobile = the contribution surface." Desktop graph + editable focused card is the main contribution UI; mobile gets a designed single-column add-person form. |
 | 2026-05-25 | Graph keyboard/screen-reader a11y deferred to V1 | User chose to ship the mesh mouse/touch-only in V0; semantic linear/nested backbone is the V1 fix (tracked in TODOS.md). Known accessibility gap. |
 | 2026-05-25 | Union-first child model (remarriage / half-siblings) | Prompted by the founder being a child of his father's 2nd marriage. Add a child to a CHOSEN marriage (couple) → both parents linked + which-union explicit; `connectParent` links existing/2nd/unknown parents. Half-siblings derive naturally. Schema unchanged (already a graph); built addChildToCouple + connectParent + tests. UI implication: the add-child form must let you pick WHICH marriage when a parent has more than one. |
+| 2026-05-30 | T5-B build choices: reveal = "Dos manos", add-child = "Pregunta guiada" | /design-shotgun. Owner link reveal uses a two-zone share-vs-keep layout so the admin link is never shared by mistake. Add-child uses a guided flow where the "¿de qué pareja?" step appears ONLY when a person has 2+ unions — single-marriage is the default, no question for the common case. |
+| 2026-05-30 | Form-control primitives added (buttons, fields, chips, toggle, slip) | DESIGN.md originally specced only the quiet olive text link ("agregar a alguien aquí") as a persistent action. Building real forms needed more. Added: a paper-weight filled **vine primary button** (`.pl-btn`, radius 10px, NO gradient), underline fieldbook **inputs** (`.pl-field`/`.pl-input`, not boxed), pill **chips** (`.pl-chip`, radius 999px) for relationship/union choice, a `vive` **toggle**, and a dashed "tear-off" **link slip** (`.pl-slip`). Text actions (`.pl-act`) carry a persistent underline (no hover-to-discover) for the mixed-age audience. Terracotta still hoarded for freshness only; primary buttons are vine. |
