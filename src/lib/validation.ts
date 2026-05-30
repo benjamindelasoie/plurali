@@ -6,9 +6,11 @@ import { z } from "zod";
 // Dates are fully PARTIAL (design-review): every part optional, `name` is the only
 // required field. A person can have no dates, a death year only, etc.
 
-const yearField = z.number().int().min(1).max(3000).nullish();
-const monthField = z.number().int().min(1).max(12).nullish();
-const dayField = z.number().int().min(1).max(31).nullish();
+// Warm Spanish messages (no raw Zod English leaks to the fieldbook UI; the
+// audience spans non-tech-fluent relatives — error copy must stay in voice).
+const yearField = z.number().int("El año tiene que ser un número entero").min(1, "Poné un año válido").max(3000, "Poné un año válido").nullish();
+const monthField = z.number().int("El mes va de 1 a 12").min(1, "El mes va de 1 a 12").max(12, "El mes va de 1 a 12").nullish();
+const dayField = z.number().int("El día va de 1 a 31").min(1, "El día va de 1 a 31").max(31, "El día va de 1 a 31").nullish();
 
 export const personInput = z.object({
   name: z.string().trim().min(1, "El nombre es obligatorio").max(120),
