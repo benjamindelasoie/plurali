@@ -11,7 +11,7 @@ export default async function TreePage({
   const res = await getTreeAction(k ?? "");
 
   if (!res.ok) return <LinkError message={res.error} />;
-  return <TreeExplorer tree={res.data} treeName={res.data.name} />;
+  return <TreeExplorer tree={res.data} treeName={res.data.name} token={k ?? ""} />;
 }
 
 function LinkError({ message }: { message: string }) {

@@ -22,7 +22,7 @@ export interface PersonRow {
   living: boolean;
   updatedAt: string | Date;
 }
-export interface Edge2 { personA: string; personB: string }
+export interface Edge2 { id?: string; personA: string; personB: string }
 export interface PCEdge { parentId: string; childId: string }
 export interface TreeData { persons: PersonRow[]; couples: Edge2[]; parentChild: PCEdge[] }
 
