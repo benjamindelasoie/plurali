@@ -5,7 +5,9 @@ import {
   addPersonAction,
   addRelativeAction,
   addChildToCoupleAction,
+  editPersonAction,
 } from "@/app/actions";
+import type { PersonRow } from "@/lib/flow";
 
 // T5-B — the "Pregunta guiada" contribution flow, used inside the focused detail
 // card (and in self mode for the empty tree). Single-marriage is the default:
@@ -205,6 +207,68 @@ export function AddRelative({
           {busy ? "Guardando…" : "Agregar"}
         </button>
         <button className="pl-act" style={{ color: "var(--muted)" }} onClick={reset}>cancelar</button>
+      </div>
+    </div>
+  );
+}
+
+// Inline edit of the focused person's own facts (DESIGN.md: the focused card is
+// editable). Preserves death dates (not shown in V0 edit) so editing birth info
+// never erases them.
+export function EditPerson({
+  token,
+  person,
+  onDone,
+  onCancel,
+}: {
+  token: string;
+  person: PersonRow;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(person.name);
+  const [birthplace, setBirthplace] = useState(person.birthplace ?? "");
+  const [by, setBy] = useState(person.birthYear != null ? String(person.birthYear) : "");
+  const [bm, setBm] = useState(person.birthMonth != null ? String(person.birthMonth) : "");
+  const [bd, setBd] = useState(person.birthDay != null ? String(person.birthDay) : "");
+  const [living, setLiving] = useState(person.living);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = useCallback(async () => {
+    const trimmed = name.trim();
+    if (!trimmed) { setError("El nombre es lo único que hace falta."); return; }
+    setBusy(true);
+    setError(null);
+    const res = await editPersonAction(token, person.id, {
+      name: trimmed,
+      birthplace: birthplace.trim() || null,
+      birthYear: toNum(by),
+      birthMonth: toNum(bm),
+      birthDay: toNum(bd),
+      // preserve death facts not exposed in the V0 edit form
+      deathYear: person.deathYear ?? null,
+      deathMonth: person.deathMonth ?? null,
+      deathDay: person.deathDay ?? null,
+      living,
+    });
+    if (!res.ok) { setError(res.error); setBusy(false); return; }
+    setBusy(false);
+    onDone();
+  }, [name, birthplace, by, bm, bd, living, token, person, onDone]);
+
+  return (
+    <div className="pl-fade">
+      <PersonFields
+        nameId="edit-name" big
+        {...{ name, setName, birthplace, setBirthplace, by, setBy, bm, setBm, bd, setBd, living, setLiving }}
+      />
+      {error ? <p className="pl-error" role="alert">{error}</p> : null}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14 }}>
+        <button className="pl-btn" onClick={save} disabled={busy}>
+          {busy ? "Guardando…" : "Guardar"}
+        </button>
+        <button className="pl-act" style={{ color: "var(--muted)" }} onClick={onCancel}>cancelar</button>
       </div>
     </div>
   );

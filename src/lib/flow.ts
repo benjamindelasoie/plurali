@@ -18,7 +18,11 @@ export interface PersonRow {
   name: string;
   birthplace: string | null;
   birthYear: number | null;
+  birthMonth?: number | null;
+  birthDay?: number | null;
   deathYear: number | null;
+  deathMonth?: number | null;
+  deathDay?: number | null;
   living: boolean;
   updatedAt: string | Date;
 }

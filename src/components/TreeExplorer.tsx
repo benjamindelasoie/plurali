@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ReactFlow, Background, BackgroundVariant, type Node } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { PersonNode } from "./PersonNode";
-import { AddRelative, type Union } from "./AddRelative";
+import { AddRelative, EditPerson, type Union } from "./AddRelative";
 import { buildGraph, freshness, personLine, type TreeData, type PersonRow } from "@/lib/flow";
 
 const nodeTypes = { person: PersonNode };
@@ -165,6 +165,7 @@ function DetailCard({
 }) {
   const f = freshness(person.updatedAt);
   const line = personLine(person);
+  const [editing, setEditing] = useState(false);
   return (
     <aside
       style={{
@@ -184,22 +185,34 @@ function DetailCard({
       <div className="display" style={{ fontSize: 28, lineHeight: 1.05, color: f.fresh ? "var(--fresh)" : "var(--ink)" }}>
         {person.name}
       </div>
-      {line ? (
-        <div style={{ fontStyle: "italic", fontSize: 14, marginTop: 6 }}>{line}</div>
+
+      {editing ? (
+        <div style={{ marginTop: 14 }}>
+          <EditPerson token={token} person={person} onDone={() => { setEditing(false); onDone(); }} onCancel={() => setEditing(false)} />
+        </div>
       ) : (
-        <div style={{ fontStyle: "italic", fontSize: 14, marginTop: 6, color: "var(--muted)" }}>sin datos todavía</div>
+        <>
+          {line ? (
+            <div style={{ fontStyle: "italic", fontSize: 14, marginTop: 6 }}>{line}</div>
+          ) : (
+            <div style={{ fontStyle: "italic", fontSize: 14, marginTop: 6, color: "var(--muted)" }}>sin datos todavía</div>
+          )}
+          {f.fresh ? (
+            <div className="pl-fresh-tag" style={{ marginTop: 10 }}>agregada {f.label}</div>
+          ) : null}
+          <div style={{ marginTop: 10 }}>
+            <button className="pl-act" style={{ fontSize: 13 }} onClick={() => setEditing(true)}>editar sus datos</button>
+          </div>
+          <hr style={{ border: "none", borderTop: "1px solid var(--hairline)", margin: "16px 0" }} />
+          <AddRelative
+            token={token}
+            personId={person.id}
+            personName={person.name}
+            unions={unions}
+            onDone={onDone}
+          />
+        </>
       )}
-      {f.fresh ? (
-        <div className="pl-fresh-tag" style={{ marginTop: 10 }}>agregada {f.label}</div>
-      ) : null}
-      <hr style={{ border: "none", borderTop: "1px solid var(--hairline)", margin: "16px 0" }} />
-      <AddRelative
-        token={token}
-        personId={person.id}
-        personName={person.name}
-        unions={unions}
-        onDone={onDone}
-      />
     </aside>
   );
 }
