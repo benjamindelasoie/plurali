@@ -5,9 +5,11 @@ import {
   addPersonAction,
   addRelativeAction,
   addChildToCoupleAction,
+  addChildWithParentsAction,
   editPersonAction,
 } from "@/app/actions";
 import type { PersonRow } from "@/lib/flow";
+import type { AddRelation } from "./PersonNode";
 
 // T5-B — the "Pregunta guiada" contribution flow, used inside the focused detail
 // card (and in self mode for the empty tree). Single-marriage is the default:
@@ -267,6 +269,154 @@ export function EditPerson({
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14 }}>
         <button className="pl-btn" onClick={save} disabled={busy}>
           {busy ? "Guardando…" : "Guardar"}
+        </button>
+        <button className="pl-act" style={{ color: "var(--muted)" }} onClick={onCancel}>cancelar</button>
+      </div>
+    </div>
+  );
+}
+
+// Relation-driven add form for the desktop directional affordances. Mount it keyed by
+// (relation + anchor) so it starts fresh per add. Parent/partner are simple; child
+// resolves the union: 0 unions => optional inline OTHER PARENT (forms the couple via
+// addChildWithParents); exactly 1 => auto-attaches to that couple (both parents); 2+ =>
+// "¿de qué pareja?" picker.
+const ADD_HEADING: Record<AddRelation, (n: string) => string> = {
+  parent: (n) => `Madre o padre de ${n}`,
+  partner: (n) => `Pareja de ${n}`,
+  child: (n) => `Hijo o hija de ${n}`,
+};
+
+export function AddPanel({
+  token,
+  personId,
+  personName,
+  relation,
+  unions,
+  onDone,
+  onCancel,
+}: {
+  token: string;
+  personId: string;
+  personName: string;
+  relation: AddRelation;
+  unions: Union[];
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [birthplace, setBirthplace] = useState("");
+  const [by, setBy] = useState("");
+  const [bm, setBm] = useState("");
+  const [bd, setBd] = useState("");
+  const [living, setLiving] = useState(true);
+  const [other, setOther] = useState(""); // inline other parent (child + 0 unions)
+  const [unionStep, setUnionStep] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const personInputObj = () => ({
+    name: name.trim(),
+    birthplace: birthplace.trim() || null,
+    birthYear: toNum(by),
+    birthMonth: toNum(bm),
+    birthDay: toNum(bd),
+    living,
+  });
+
+  const run = useCallback(
+    async (fn: () => Promise<{ ok: boolean; error?: string }>) => {
+      setBusy(true);
+      setError(null);
+      const res = await fn();
+      if (!res.ok) {
+        setError(res.error ?? "No se pudo guardar — reintentá.");
+        setBusy(false);
+        return;
+      }
+      setBusy(false);
+      onDone();
+    },
+    [onDone],
+  );
+
+  const submitChild = (coupleId: string | null, otherName?: string | null) => {
+    const child = personInputObj();
+    return coupleId
+      ? run(() => addChildToCoupleAction(token, { coupleId, child }))
+      : run(() => addChildWithParentsAction(token, { parentId: personId, otherParentName: otherName ?? null, child }));
+  };
+
+  const onPrimary = () => {
+    if (!name.trim()) {
+      setError("El nombre es lo único que hace falta.");
+      return;
+    }
+    if (relation === "parent" || relation === "partner") {
+      return run(() => addRelativeAction(token, { person: personInputObj(), relationTo: personId, relation }));
+    }
+    // child
+    if (unions.length >= 2 && !unionStep) {
+      setUnionStep(true);
+      return;
+    }
+    if (unions.length === 1) return submitChild(unions[0].coupleId);
+    return submitChild(null, other.trim() || null);
+  };
+
+  // child + 2 unions: which marriage?
+  if (relation === "child" && unionStep) {
+    return (
+      <div className="pl-fade">
+        <p style={{ fontSize: 15 }}>¿hijo/a de qué pareja?</p>
+        <p className="pl-meta" style={{ marginTop: 2, marginBottom: 10 }}>
+          {personName} tuvo más de una pareja — elegí de cuál es {name.trim() || "esta persona"}.
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {unions.map((u) => (
+            <button key={u.coupleId} className="pl-chip" style={{ justifyContent: "flex-start" }} disabled={busy} onClick={() => submitChild(u.coupleId)}>
+              con {u.partnerName}
+            </button>
+          ))}
+          <button className="pl-chip" style={{ justifyContent: "flex-start", fontStyle: "italic", color: "var(--muted)" }} disabled={busy} onClick={() => submitChild(null, null)}>
+            otra pareja / no la sé
+          </button>
+        </div>
+        {error ? <p className="pl-error" role="alert">{error}</p> : null}
+        <button className="pl-act" style={{ marginTop: 12, color: "var(--muted)" }} onClick={() => setUnionStep(false)}>atrás</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pl-fade">
+      <p style={{ fontSize: 15, marginBottom: 4 }}>{ADD_HEADING[relation](personName)}</p>
+      {relation === "child" && unions.length === 1 ? (
+        <p className="pl-meta" style={{ marginBottom: 4 }}>
+          será hijo/a de {personName} y {unions[0].partnerName}.
+        </p>
+      ) : null}
+      <PersonFields
+        nameId="add-name" big
+        {...{ name, setName, birthplace, setBirthplace, by, setBy, bm, setBm, bd, setBd, living, setLiving }}
+      />
+      {relation === "child" && unions.length === 0 ? (
+        <div className="pl-field">
+          <label htmlFor="add-other-parent">otro padre/madre (opcional)</label>
+          <input
+            id="add-other-parent"
+            className="pl-input"
+            value={other}
+            onChange={(e) => setOther(e.target.value)}
+            placeholder="dejalo vacío si no lo sabés"
+            maxLength={120}
+          />
+        </div>
+      ) : null}
+      {error ? <p className="pl-error" role="alert">{error}</p> : null}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14 }}>
+        <button className="pl-btn" onClick={onPrimary} disabled={busy}>
+          {busy ? "Guardando…" : "Agregar"}
         </button>
         <button className="pl-act" style={{ color: "var(--muted)" }} onClick={onCancel}>cancelar</button>
       </div>

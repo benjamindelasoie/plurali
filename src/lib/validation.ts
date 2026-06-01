@@ -54,3 +54,14 @@ export const connectParentInput = z.object({
   childId: z.string().uuid(),
 });
 export type ConnectParentInput = z.infer<typeof connectParentInput>;
+
+// Add a child below a person, optionally creating the OTHER parent inline (which forms
+// the couple). Lets the desktop directional "↓ hijo/a" attach to a couple even when the
+// couple doesn't exist yet — no hidden "add the partner first" ordering. otherParentName
+// null => single known parent.
+export const addChildWithParentsInput = z.object({
+  parentId: z.string().uuid(),
+  otherParentName: z.string().trim().min(1, "Poné un nombre o dejalo vacío").max(120).nullish(),
+  child: personInput,
+});
+export type AddChildWithParentsInput = z.infer<typeof addChildWithParentsInput>;

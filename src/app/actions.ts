@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { requireTreeContext, requireOwner, TokenError } from "@/lib/auth";
-import { addPerson, addRelative, addChildToCouple, connectParent, editPerson, getTree, MutationError } from "@/lib/persons";
+import { addPerson, addRelative, addChildToCouple, addChildWithParents, connectParent, editPerson, getTree, MutationError } from "@/lib/persons";
 import { createTree, mintContributeLink, revokeLink } from "@/lib/links";
 
 // Thin "use server" wrappers over the service layer. Every action that mutates a
@@ -70,6 +70,17 @@ export async function addChildToCoupleAction(token: string, input: unknown): Pro
   try {
     const ctx = await requireTreeContext(token);
     const c = await addChildToCouple(ctx, input);
+    return { ok: true, data: { id: c.id } };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Add a child below a person, optionally creating the other parent inline (forms the couple). */
+export async function addChildWithParentsAction(token: string, input: unknown): Promise<ActionResult<{ id: string }>> {
+  try {
+    const ctx = await requireTreeContext(token);
+    const c = await addChildWithParents(ctx, input);
     return { ok: true, data: { id: c.id } };
   } catch (e) {
     return fail(e);

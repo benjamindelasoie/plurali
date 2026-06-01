@@ -52,6 +52,26 @@ a { color: var(--vine); text-decoration: none; }
 .pnode.sel { border-color: var(--vine); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 18px 30px -16px rgba(34, 32, 27, 0.55); }
 .pnode.dim { opacity: 0.3; }
 
+/* Directional add affordances (desktop add-mode). Revealed on node hover; placed
+   up = parents, side = partner, down = children (the genealogy mental model). */
+.pnode { position: relative; }
+.pnode.addable { outline: 1px dashed color-mix(in srgb, #5c6b3e 45%, transparent); outline-offset: 4px; }
+.pn-add {
+  position: absolute; z-index: 6;
+  font-family: var(--font-body), Georgia, serif; font-size: 11.5px; font-weight: 600;
+  white-space: nowrap; color: #fbf8f0; background: #5c6b3e;
+  border: 1px solid #5c6b3e; border-radius: 999px; padding: 5px 11px; cursor: pointer;
+  opacity: 0; pointer-events: none; transition: opacity 0.15s ease, background 0.15s ease;
+  box-shadow: 0 6px 16px -8px rgba(34, 32, 27, 0.5);
+}
+.pnode.addable:hover .pn-add,
+.pn-add:focus-visible { opacity: 1; pointer-events: auto; }
+.pn-add:hover { background: #4a572f; }
+.pn-add--up { top: -10px; left: 50%; transform: translate(-50%, -100%); }
+.pn-add--down { bottom: -10px; left: 50%; transform: translate(-50%, 100%); }
+.pn-add--side { top: 50%; right: -10px; transform: translate(100%, -50%); }
+@media (prefers-reduced-motion: reduce) { .pn-add { transition: none; } }
+
 /* ─────────────────────────────────────────────────────────────────────────
    Fieldbook UI primitives (T5-B). Shared by the create-tree page, the
    "Dos manos" reveal, and the "Pregunta guiada" contribution flow.
