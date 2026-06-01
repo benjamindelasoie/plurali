@@ -9,7 +9,7 @@ vi.mock("@/db", async () => {
 import { migrate, reset, testDb } from "./db";
 import { createTree } from "@/lib/links";
 import { requireTreeContext, type TreeContext } from "@/lib/auth";
-import { addPerson, addRelative, addChildToCouple, connectParent, editPerson, getTree, wouldCreateCycle } from "@/lib/persons";
+import { addPerson, addRelative, addChildToCouple, addChildWithParents, connectParent, editPerson, getTree, wouldCreateCycle } from "@/lib/persons";
 import { persons, parentChild } from "@/db/schema";
 
 beforeAll(() => migrate());
@@ -150,5 +150,31 @@ describe("remarriage, two parents & half-siblings (union-first)", () => {
     const b = await addRelative(ctx, { person: { name: "B" }, relationTo: a.id, relation: "child" }); // A parent of B
     // making B a parent of A would close A->B->A
     await expect(connectParent(ctx, { parentId: b.id, childId: a.id })).rejects.toBeTruthy();
+  });
+
+  it("addChildWithParents (other parent) creates the couple and links BOTH parents", async () => {
+    const ctx = await freshTree();
+    const hans = await addPerson(ctx, { name: "Hans" }); // no union yet
+    const kid = await addChildWithParents(ctx, { parentId: hans.id, otherParentName: "Greta", child: { name: "Nieto" } });
+
+    const { persons: people, couples, parentChild: pc } = await getTree(ctx.treeId);
+    expect(people).toHaveLength(3); // Hans + Greta + Nieto
+    expect(couples).toHaveLength(1); // a new union formed
+    const greta = people.find((p) => p.name === "Greta")!;
+    const parents = pc.filter((e) => e.childId === kid.id).map((e) => e.parentId).sort();
+    expect(parents).toEqual([hans.id, greta.id].sort()); // both parents linked
+    const couple = couples[0];
+    expect([couple.personA, couple.personB].sort()).toEqual([hans.id, greta.id].sort());
+  });
+
+  it("addChildWithParents (no other parent) makes a single-parent child, no couple", async () => {
+    const ctx = await freshTree();
+    const solo = await addPerson(ctx, { name: "Solo" });
+    const kid = await addChildWithParents(ctx, { parentId: solo.id, child: { name: "Hijo" } });
+
+    const { couples, parentChild: pc } = await getTree(ctx.treeId);
+    expect(couples).toHaveLength(0); // no union created
+    const parents = pc.filter((e) => e.childId === kid.id).map((e) => e.parentId);
+    expect(parents).toEqual([solo.id]); // only the known parent
   });
 });

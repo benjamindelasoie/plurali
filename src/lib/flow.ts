@@ -18,11 +18,15 @@ export interface PersonRow {
   name: string;
   birthplace: string | null;
   birthYear: number | null;
+  birthMonth?: number | null;
+  birthDay?: number | null;
   deathYear: number | null;
+  deathMonth?: number | null;
+  deathDay?: number | null;
   living: boolean;
   updatedAt: string | Date;
 }
-export interface Edge2 { personA: string; personB: string }
+export interface Edge2 { id?: string; personA: string; personB: string }
 export interface PCEdge { parentId: string; childId: string }
 export interface TreeData { persons: PersonRow[]; couples: Edge2[]; parentChild: PCEdge[] }
 

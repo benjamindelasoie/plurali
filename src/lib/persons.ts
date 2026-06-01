@@ -1,7 +1,7 @@
 import { eq, and, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { trees, persons, couples, parentChild } from "@/db/schema";
-import { personInput, addRelativeInput, addChildToCoupleInput, connectParentInput } from "./validation";
+import { personInput, addRelativeInput, addChildToCoupleInput, connectParentInput, addChildWithParentsInput } from "./validation";
 import type { TreeContext } from "./auth";
 import type { PersonInput } from "./validation";
 
@@ -181,4 +181,49 @@ export async function connectParent(ctx: TreeContext, rawInput: unknown) {
   if (existing) return; // idempotent — edge already there
 
   await db.insert(parentChild).values({ treeId: ctx.treeId, parentId, childId, createdByLinkId: ctx.linkId });
+}
+
+/**
+ * Add a NEW child below an existing person, optionally creating the OTHER parent inline.
+ * With otherParentName: creates that parent + the couple + links BOTH as parents (one
+ * step — no "add the partner first" ordering). Without it: single known parent.
+ * Everyone here is brand-new, so no cycle is possible.
+ *
+ *   parentId ──┐                      parentId ──(couple)── other(new)
+ *   child(new) ─┘  (single)    OR        └──────┬──────────┘
+ *                                            child(new)
+ */
+export async function addChildWithParents(ctx: TreeContext, rawInput: unknown) {
+  const { parentId, otherParentName, child } = addChildWithParentsInput.parse(rawInput);
+
+  const [parent] = await db
+    .select({ id: persons.id })
+    .from(persons)
+    .where(and(eq(persons.id, parentId), eq(persons.treeId, ctx.treeId)))
+    .limit(1);
+  if (!parent) throw new MutationError("No se encontró la persona.");
+
+  const [c] = await db
+    .insert(persons)
+    .values({ ...fields(ctx.treeId, child), createdByLinkId: ctx.linkId })
+    .returning();
+
+  if (otherParentName) {
+    const [other] = await db
+      .insert(persons)
+      .values({ treeId: ctx.treeId, name: otherParentName, living: true, createdByLinkId: ctx.linkId })
+      .returning();
+    await db.insert(couples).values({
+      treeId: ctx.treeId, personA: parentId, personB: other.id, createdByLinkId: ctx.linkId,
+    });
+    await db.insert(parentChild).values([
+      { treeId: ctx.treeId, parentId, childId: c.id, createdByLinkId: ctx.linkId },
+      { treeId: ctx.treeId, parentId: other.id, childId: c.id, createdByLinkId: ctx.linkId },
+    ]);
+  } else {
+    await db.insert(parentChild).values({
+      treeId: ctx.treeId, parentId, childId: c.id, createdByLinkId: ctx.linkId,
+    });
+  }
+  return c;
 }
