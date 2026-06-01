@@ -295,6 +295,7 @@ function PersonFields(props: {
           placeholder="¿cómo se llama?"
           autoFocus
           maxLength={120}
+          suppressHydrationWarning
         />
       </div>
       <div className="pl-field">

@@ -87,6 +87,9 @@ export function CreateTree() {
                 placeholder="Familia Müller"
                 autoFocus
                 maxLength={120}
+                // autoFocus draws focus-tracking attributes from some dev
+                // environments/extensions before hydration — benign, suppress it.
+                suppressHydrationWarning
               />
             </div>
             {error ? <p className="pl-error" role="alert">{error}</p> : null}
