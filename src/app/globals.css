@@ -64,12 +64,23 @@ a { color: var(--vine); text-decoration: none; }
   opacity: 0; pointer-events: none; transition: opacity 0.15s ease, background 0.15s ease;
   box-shadow: 0 6px 16px -8px rgba(34, 32, 27, 0.5);
 }
+/* Reveal on hover (immediate, CSS) OR via JS hover-intent's `revealed` class, which
+   adds a 280ms grace so the gap between card and pill can't make them vanish before
+   you click. Two mechanisms so a real browser always reveals on hover regardless of
+   React event timing, and the grace bridges the gap. */
 .pnode.addable:hover .pn-add,
+.pn-add.revealed,
 .pn-add:focus-visible { opacity: 1; pointer-events: auto; }
 .pn-add:hover { background: #4a572f; }
-.pn-add--up { top: -10px; left: 50%; transform: translate(-50%, -100%); }
-.pn-add--down { bottom: -10px; left: 50%; transform: translate(-50%, 100%); }
-.pn-add--side { top: 50%; right: -10px; transform: translate(100%, -50%); }
+.pn-add--up { top: -6px; left: 50%; transform: translate(-50%, -100%); }
+.pn-add--down { bottom: -6px; left: 50%; transform: translate(-50%, 100%); }
+.pn-add--side { top: 50%; right: -6px; transform: translate(100%, -50%); }
+/* Invisible bridges spanning the gap toward the card, so moving onto a pill keeps the
+   pointer inside the node's hover subtree (belt-and-suspenders with the grace timer). */
+.pn-add::before { content: ""; position: absolute; }
+.pn-add--up::before { left: 0; right: 0; bottom: -7px; height: 7px; }
+.pn-add--down::before { left: 0; right: 0; top: -7px; height: 7px; }
+.pn-add--side::before { top: 0; bottom: 0; left: -7px; width: 7px; }
 @media (prefers-reduced-motion: reduce) { .pn-add { transition: none; } }
 
 /* ─────────────────────────────────────────────────────────────────────────
