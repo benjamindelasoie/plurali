@@ -83,6 +83,21 @@ a { color: var(--vine); text-decoration: none; }
 .pn-add--side::before { top: 0; bottom: 0; left: -7px; width: 7px; }
 @media (prefers-reduced-motion: reduce) { .pn-add { transition: none; } }
 
+/* Union junction — a small olive "knot" where a couple's children branch off. */
+.union-knot { width: 14px; height: 14px; border-radius: 999px; background: color-mix(in srgb, var(--vine) 50%, transparent); }
+
+/* Motion: cards ease into place on first load + when newly added; existing cards
+   glide to new positions when the (deterministic) layout shifts on an add — a gentle
+   settle, not the old re-scramble. `.motion-ready` is added ~120ms after mount so
+   nodes don't animate in from the origin on the very first paint. */
+.pnode { animation: pl-card-in 360ms cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes pl-card-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.motion-ready .react-flow__node { transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1); }
+@media (prefers-reduced-motion: reduce) {
+  .pnode { animation: none; }
+  .motion-ready .react-flow__node { transition: none; }
+}
+
 /* ─────────────────────────────────────────────────────────────────────────
    Fieldbook UI primitives (T5-B). Shared by the create-tree page, the
    "Dos manos" reveal, and the "Pregunta guiada" contribution flow.

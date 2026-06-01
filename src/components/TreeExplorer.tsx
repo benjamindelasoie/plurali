@@ -1,14 +1,15 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ReactFlow, Background, BackgroundVariant, type Node } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { PersonNode, type AddRelation } from "./PersonNode";
+import { UnionNode } from "./UnionNode";
 import { AddRelative, AddPanel, EditPerson, type Union } from "./AddRelative";
 import { buildGraph, freshness, personLine, type TreeData, type PersonRow } from "@/lib/flow";
 
-const nodeTypes = { person: PersonNode };
+const nodeTypes = { person: PersonNode, union: UnionNode };
 
 type AddIntent = { personId: string; personName: string; relation: AddRelation };
 
@@ -26,6 +27,13 @@ export function TreeExplorer({
   const [selected, setSelected] = useState<string | null>(null);
   const [addMode, setAddMode] = useState(false);
   const [addIntent, setAddIntent] = useState<AddIntent | null>(null);
+  // Enable position transitions only after first paint, so nodes don't glide in
+  // from the origin on initial load (they fade in via the .pnode animation instead).
+  const [motionReady, setMotionReady] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setMotionReady(true), 120);
+    return () => clearTimeout(t);
+  }, []);
 
   const refresh = useCallback(() => router.refresh(), [router]);
 
@@ -61,11 +69,15 @@ export function TreeExplorer({
 
   const nodes = useMemo(
     () =>
-      base.nodes.map((n) => ({
-        ...n,
-        selected: n.id === selected,
-        data: { ...n.data, dim: selected != null && n.id !== selected, addMode, onSelect, onAdd },
-      })),
+      base.nodes.map((n) =>
+        n.type === "person"
+          ? {
+              ...n,
+              selected: n.id === selected,
+              data: { ...n.data, dim: selected != null && n.id !== selected, addMode, onSelect, onAdd },
+            }
+          : n,
+      ),
     [base, selected, addMode, onSelect, onAdd],
   );
 
@@ -76,10 +88,11 @@ export function TreeExplorer({
         const dim = selected != null && !lit;
         return {
           ...e,
+          pathOptions: { borderRadius: 16 },
           style: {
             stroke: "#5c6b3e",
-            strokeWidth: e.data.kind === "couple" ? 2.6 : 1.6,
-            opacity: dim ? 0.15 : lit ? 0.85 : 0.5,
+            strokeWidth: e.data.kind === "couple" ? 2.2 : 1.4,
+            opacity: dim ? 0.18 : lit ? 0.9 : 0.5,
           },
         };
       }),
@@ -101,7 +114,7 @@ export function TreeExplorer({
   const empty = tree.persons.length === 0;
 
   return (
-    <div style={{ position: "fixed", inset: 0 }}>
+    <div className={motionReady ? "motion-ready" : undefined} style={{ position: "fixed", inset: 0 }}>
       <header style={{ position: "absolute", top: 18, left: 24, zIndex: 10 }}>
         <div className="display" style={{ fontSize: 22 }}>
           plurali<span style={{ color: "var(--vine)" }}>.</span>
