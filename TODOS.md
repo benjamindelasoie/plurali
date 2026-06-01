@@ -53,3 +53,34 @@ are the next things once the 48-hour one-cousin thesis test passes.
 - **Context:** eng-review + `docs/ideas/true-federation.md`. Pairs with real accounts
   and stewardship in V1.
 - **Depends on:** accounts (V1), the graph data model (already in V0).
+
+## 4. DataLoader exploration on the GraphQL read layer (deferred learning)
+- **What:** Replace the GraphQL read layer's "load whole tree into context" resolution with
+  per-field resolvers backed by **DataLoader** batch loaders (`parentsByChildId`,
+  `childrenByParentId`, `couplesByPersonId`), and add a test asserting the batched query
+  count is 1, not N.
+- **Why:** The current GraphQL slice (built parallel to `getTreeAction`) resolves everything
+  in-memory from one `getTree` call, so there is **no N+1 to fix** — which means the
+  DataLoader lesson (watch N+1 collapse) is currently skipped. This TODO captures it as a
+  deliberate future exercise. At family scale DataLoader is not needed for performance; the
+  value is purely learning.
+- **Pros:** Hands-on with the canonical GraphQL N+1/batching pattern, on real data.
+- **Cons:** More moving parts than load-all; zero product benefit at family scale.
+- **Context:** plan-eng-review 2026-06-01, decision C1→b (load-all now, DataLoader later).
+- **Depends on:** the GraphQL read layer existing first.
+
+## 5. Promote GraphQL to the sole read path (retire getTreeAction)
+- **What:** Once the parallel GraphQL read layer is proven at parity, flip the explore view
+  to read via GraphQL only and remove `getTreeAction` + the server-component `getTree` read
+  from the page path. Re-point the post-mutation refresh (currently `router.refresh()` →
+  `getTreeAction`) at the GraphQL read.
+- **Why:** T1 chose to build GraphQL **parallel** (keep `getTreeAction`) so the learning
+  layer stays disposable. The project isn't live, so the eventual full switch is cheap — but
+  it should be a deliberate, tracked step (parity check + post-mutation refresh re-point),
+  not silent drift.
+- **Pros:** One read path; the learning layer becomes the real one.
+- **Cons:** Couples a supported screen to GraphQL — only do it after parity + depth/complexity
+  limits + observability are solid (see the eng-review fold-ins).
+- **Context:** plan-eng-review 2026-06-01, decision T1→a; Codex outside voice flagged that
+  retiring `getTreeAction` prematurely couples the post-mutation refresh shape.
+- **Depends on:** the parallel GraphQL read layer + its tests being green.
