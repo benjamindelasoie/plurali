@@ -84,7 +84,7 @@ export function buildGraph(tree: TreeData): FlowGraph {
   }
 
   const g = new dagre.graphlib.Graph();
-  g.setGraph({ rankdir: "TB", ranksep: 38, nodesep: 36, marginx: 40, marginy: 40, ranker: "tight-tree" });
+  g.setGraph({ rankdir: "TB", ranksep: 48, nodesep: 54, marginx: 48, marginy: 48, ranker: "tight-tree" });
   g.setDefaultEdgeLabel(() => ({}));
 
   for (const p of tree.persons) g.setNode(p.id, { width: NODE_W, height: NODE_H });

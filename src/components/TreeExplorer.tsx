@@ -111,6 +111,13 @@ export function TreeExplorer({
     [tree.persons, selected],
   );
   const selUnions = useMemo(() => (sel ? unionsFor(sel.id) : []), [sel, unionsFor]);
+  const selRels = useMemo(() => {
+    if (!sel) return { parents: [] as string[], children: [] as string[] };
+    const name = (id: string) => personById.get(id)?.name;
+    const parents = tree.parentChild.filter((e) => e.childId === sel.id).map((e) => name(e.parentId)).filter((n): n is string => !!n);
+    const children = tree.parentChild.filter((e) => e.parentId === sel.id).map((e) => name(e.childId)).filter((n): n is string => !!n);
+    return { parents, children };
+  }, [sel, tree.parentChild, personById]);
   const empty = tree.persons.length === 0;
 
   return (
@@ -184,6 +191,8 @@ export function TreeExplorer({
           person={sel}
           token={token}
           unions={selUnions}
+          parents={selRels.parents}
+          childNames={selRels.children}
           onClose={() => setSelected(null)}
           onDone={refresh}
         />
@@ -247,51 +256,71 @@ function EmptyState({ token, onDone }: { token: string; onDone: () => void }) {
   );
 }
 
+// A relationship line in the fieldbook voice: italic muted label + ink names.
+function Rel({ label, names }: { label: string; names: string[] }) {
+  if (!names.length) return null;
+  return (
+    <div style={{ fontFamily: "var(--font-body), Georgia, serif", fontSize: 13.5, lineHeight: 1.5 }}>
+      <span style={{ fontStyle: "italic", color: "var(--muted)" }}>{label} </span>
+      <span style={{ color: "var(--ink)" }}>{names.join(" · ")}</span>
+    </div>
+  );
+}
+
 function DetailCard({
   person,
   token,
   unions,
+  parents,
+  childNames,
   onClose,
   onDone,
 }: {
   person: PersonRow;
   token: string;
   unions: Union[];
+  parents: string[];
+  childNames: string[];
   onClose: () => void;
   onDone: () => void;
 }) {
   const f = freshness(person.updatedAt);
   const line = personLine(person);
   const [editing, setEditing] = useState(false);
+  const hasRels = parents.length || unions.length || childNames.length;
   return (
     <FloatingCard onClose={onClose}>
-      <div className="display" style={{ fontSize: 28, lineHeight: 1.05, color: f.fresh ? "var(--fresh)" : "var(--ink)" }}>
+      <div className="display" style={{ fontSize: 29, lineHeight: 1.05, color: f.fresh ? "var(--fresh)" : "var(--ink)" }}>
         {person.name}
       </div>
+      {line ? (
+        <div style={{ fontStyle: "italic", fontSize: 14, marginTop: 6, color: "var(--muted)" }}>{line}</div>
+      ) : (
+        <div style={{ fontStyle: "italic", fontSize: 14, marginTop: 6, color: "var(--muted)" }}>sin datos todavía</div>
+      )}
+      {f.fresh ? <div className="pl-fresh-tag" style={{ marginTop: 8 }}>agregada {f.label}</div> : null}
 
       {editing ? (
-        <div style={{ marginTop: 14 }}>
+        <div style={{ marginTop: 16 }}>
           <EditPerson token={token} person={person} onDone={() => { setEditing(false); onDone(); }} onCancel={() => setEditing(false)} />
         </div>
       ) : (
         <>
-          {line ? (
-            <div style={{ fontStyle: "italic", fontSize: 14, marginTop: 6 }}>{line}</div>
-          ) : (
-            <div style={{ fontStyle: "italic", fontSize: 14, marginTop: 6, color: "var(--muted)" }}>sin datos todavía</div>
-          )}
-          {f.fresh ? <div className="pl-fresh-tag" style={{ marginTop: 10 }}>agregada {f.label}</div> : null}
-          {unions.length ? (
-            <div className="pl-meta" style={{ marginTop: 10 }}>
-              {unions.length === 1 ? "pareja: " : "parejas: "}
-              {unions.map((u) => u.partnerName).join(" · ")}
-            </div>
+          {hasRels ? (
+            <>
+              <hr style={{ border: "none", borderTop: "1px solid var(--hairline)", margin: "14px 0" }} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <Rel label="hijo/a de" names={parents} />
+                <Rel label="en pareja con" names={unions.map((u) => u.partnerName)} />
+                <Rel label="madre/padre de" names={childNames} />
+              </div>
+            </>
           ) : null}
-          <div style={{ marginTop: 10 }}>
-            <button className="pl-act" style={{ fontSize: 13 }} onClick={() => setEditing(true)}>editar sus datos</button>
-          </div>
-          <hr style={{ border: "none", borderTop: "1px solid var(--hairline)", margin: "16px 0" }} />
-          <p className="pl-meta">para sumar familiares, tocá “Agregar familiares” arriba a la derecha y pasá el mouse sobre una persona.</p>
+          <hr style={{ border: "none", borderTop: "1px solid var(--hairline)", margin: "14px 0" }} />
+          <button className="pl-act" style={{ fontSize: 13 }} onClick={() => setEditing(true)}>editar sus datos</button>
+          <p className="pl-meta" style={{ marginTop: 12 }}>
+            para sumar familiares, tocá “Agregar familiares” arriba a la derecha y pasá el mouse sobre una persona.
+          </p>
         </>
       )}
     </FloatingCard>
