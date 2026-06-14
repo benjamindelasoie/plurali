@@ -164,7 +164,7 @@ export function TreeExplorer({
             maxWidth: "min(560px, calc(100vw - 48px))",
           }}
         >
-          pasá el mouse sobre una persona y elegí qué sumar — arriba madre/padre, al lado pareja, abajo hijo/a
+          tocá una persona y elegí qué sumar — arriba madre/padre, al lado pareja, abajo hijo/a
         </div>
       ) : null}
 
@@ -336,7 +336,7 @@ function DetailCard({
           <hr style={{ border: "none", borderTop: "1px solid var(--hairline)", margin: "14px 0" }} />
           <button className="pl-act" style={{ fontSize: 13 }} onClick={() => setEditing(true)}>editar sus datos</button>
           <p className="pl-meta" style={{ marginTop: 12 }}>
-            para sumar familiares, tocá “Agregar familiares” arriba a la derecha y pasá el mouse sobre una persona.
+            para sumar familiares, tocá “Agregar familiares” arriba a la derecha y después tocá una persona.
           </p>
         </>
       )}
