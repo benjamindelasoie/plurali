@@ -1,22 +1,24 @@
-import { drizzle, type NeonHttpDatabase } from "drizzle-orm/neon-http";
-import { neon } from "@neondatabase/serverless";
+import { drizzle, type NeonDatabase } from "drizzle-orm/neon-serverless";
+import { Pool } from "@neondatabase/serverless";
 import * as schema from "./schema";
 
-// Neon serverless HTTP driver (works on Vercel Fluid/Node). LAZY by design: we do
-// NOT call neon() at import. Next evaluates route modules at build time to collect
-// page data, and neon() throws without a connection string — so eager init made the
-// build depend on DATABASE_URL being present (it broke Preview builds). The client is
-// created on first actual query instead; importing the module is always side-effect
-// free, and a missing DATABASE_URL fails loudly only when the DB is really used.
+// Neon serverless Pool driver (works on Vercel Fluid/Node; runtime = "nodejs" gives
+// us a global WebSocket on Node 22). The Pool driver — unlike neon-http — supports
+// interactive db.transaction(), which the multi-write person mutations rely on to be
+// atomic. LAZY by design: we do NOT construct the Pool at import. Next evaluates route
+// modules at build time to collect page data, and we don't want the build to depend on
+// DATABASE_URL being present (eager init broke Preview builds). The client is created
+// on first actual query instead; importing the module is always side-effect free, and
+// a missing DATABASE_URL fails loudly only when the DB is really used.
 
-type Db = NeonHttpDatabase<typeof schema>;
+type Db = NeonDatabase<typeof schema>;
 
 let instance: Db | null = null;
 function getDb(): Db {
   if (!instance) {
     const url = process.env.DATABASE_URL;
     if (!url) throw new Error("[plurali] DATABASE_URL is not set — no database connection available.");
-    instance = drizzle(neon(url), { schema });
+    instance = drizzle(new Pool({ connectionString: url }), { schema });
   }
   return instance;
 }
