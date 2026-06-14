@@ -9,15 +9,15 @@ the plan fully, honor its STOP conditions, update your row when done.
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 001 | Add `typecheck` npm script | P1 | S | — | TODO |
-| 002 | Remove unused `d3-force` dependency | P1 | S | — | TODO |
-| 003 | Replace boilerplate README | P3 | S | — | TODO |
-| 004 | Baseline security response headers | P2 | S | — | TODO |
-| 005 | Remove `any` casts in `graphql.test.ts` | P1 | S | — | TODO |
-| 006 | Characterization tests for `buildGraph` | P2 | S | — | TODO |
-| 007 | `addRelative` tenant check on `relationTo` | P1 | S | — | TODO |
-| 008 | Atomic multi-write mutations (`db.batch`) | P2 | M | 007 | TODO |
-| 009 | Harden host-origin in GraphQL read path | P2 | S | — | TODO |
+| 001 | Add `typecheck` npm script | P1 | S | — | DONE (`7245732`) |
+| 002 | Remove unused `d3-force` dependency | P1 | S | — | DONE (`9e383e2` + `06ccacd` @types) |
+| 003 | Replace boilerplate README | P3 | S | — | DONE (`05c81aa`) |
+| 004 | Baseline security response headers | P2 | S | — | DONE (`ebe1ba6`) |
+| 005 | Remove `any` casts in `graphql.test.ts` | P1 | S | — | DONE (`df5f19a`) |
+| 006 | Characterization tests for `buildGraph` | P2 | S | — | DONE (`ac71791`) |
+| 007 | `addRelative` tenant check on `relationTo` | P1 | S | — | IN PROGRESS |
+| 008 | Atomic multi-write mutations (transaction) | P2 | M | 007 | TODO |
+| 009 | Harden host-origin in GraphQL read path | P2 | S | — | DONE (`f051ace`) |
 | 010 | Owner link management + anchored-link landing | P2 | M | — | TODO |
 | 011 | "Find yourself" search for open-link recipients | P2 | M | — | TODO |
 | 012 | Attribution UI ("de la mano de …") | P3 | M | — | TODO |
