@@ -9,6 +9,7 @@ import { UnionNode } from "./UnionNode";
 import { AddRelative, AddPanel, EditPerson, type Union } from "./AddRelative";
 import { LinkManager } from "./LinkManager";
 import { buildGraph, freshness, personLine, type TreeData, type PersonRow } from "@/lib/flow";
+import { matchPersons } from "@/lib/search";
 
 const nodeTypes = { person: PersonNode, union: UnionNode };
 
@@ -44,6 +45,9 @@ export function TreeExplorer({
   const [addMode, setAddMode] = useState(false);
   const [addIntent, setAddIntent] = useState<AddIntent | null>(null);
   const [showLinks, setShowLinks] = useState(false);
+  // "Find yourself" search: a quiet contextual affordance, NOT permanent canvas
+  // chrome (DESIGN.md "No chrome"). Closed at rest; expands to one .pl-input.
+  const [searchOpen, setSearchOpen] = useState(false);
   // Enable position transitions only after first paint, so nodes don't glide in
   // from the origin on initial load (they fade in via the .pnode animation instead).
   const [motionReady, setMotionReady] = useState(false);
@@ -64,6 +68,11 @@ export function TreeExplorer({
     fit.current?.();
   }, [personCount]);
 
+  // Center a person's card in view — reused by the seeded landing and the
+  // "find yourself" search (a chosen result may be far off-screen). Cards are
+  // 172×76 (flow.ts) and positions are the top-left corner, so center = +half.
+  const centerPerson = useRef<((id: string) => void) | null>(null);
+
   const personById = useMemo(() => new Map(tree.persons.map((p) => [p.id, p])), [tree.persons]);
   // Unions for any person (couple edges they belong to) -> the union picker.
   const unionsFor = useCallback(
@@ -78,6 +87,13 @@ export function TreeExplorer({
   );
 
   const onSelect = useCallback((id: string) => setSelected(id), []);
+  // Picking a search result focuses that person (the existing selection logic
+  // brings their card to the front; React Flow centers it) and collapses search.
+  const onPickResult = useCallback((id: string) => {
+    setSelected(id);
+    setSearchOpen(false);
+    centerPerson.current?.(id);
+  }, []);
   const onAdd = useCallback(
     (id: string, relation: AddRelation) => {
       setAddIntent({ personId: id, personName: personById.get(id)?.name ?? "", relation });
@@ -198,16 +214,13 @@ export function TreeExplorer({
         nodeTypes={nodeTypes}
         onInit={(inst) => {
           fit.current = () => inst.fitView({ padding: 0.25, duration: 400 });
+          centerPerson.current = (id: string) => {
+            const n = inst.getNode(id);
+            if (n) inst.setCenter(n.position.x + 86, n.position.y + 38, { zoom: 1, duration: 500 });
+          };
           // Anchored landing: ease the seeded person's card to center on first paint,
           // so "sos vos? agregá tu familia" opens ON them rather than on the whole mesh.
-          // buildGraph positions are the card's top-left; person cards are 172×76 (flow.ts),
-          // so center = position + half-card.
-          if (seededSelection) {
-            const n = inst.getNode(seededSelection);
-            if (n) {
-              inst.setCenter(n.position.x + 86, n.position.y + 38, { zoom: 1, duration: 500 });
-            }
-          }
+          if (seededSelection) centerPerson.current(seededSelection);
         }}
         onNodeClick={onNodeClick}
         onPaneClick={() => setSelected(null)}
@@ -251,7 +264,21 @@ export function TreeExplorer({
         />
       ) : null}
 
+      {/* Discreet "find yourself" search for open-link recipients (no anchor).
+          A quiet text action at rest — NOT a permanent canvas search bar
+          (DESIGN.md "No chrome"). Bottom-left, clear of the header, the
+          "Agregar familiares" button, and the add-mode / explore hints. */}
       {!empty && !addMode ? (
+        <SearchAffordance
+          persons={tree.persons}
+          open={searchOpen}
+          onOpen={() => setSearchOpen(true)}
+          onClose={() => setSearchOpen(false)}
+          onPick={onPickResult}
+        />
+      ) : null}
+
+      {!empty && !addMode && !searchOpen ? (
         <div style={{ position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)", fontStyle: "italic", color: "var(--muted)", fontSize: 12, opacity: 0.85 }}>
           arrastrá para explorar · clic en una persona para traerla al frente
         </div>
@@ -266,6 +293,121 @@ export function TreeExplorer({
           defaultPersonId={selected}
           onClose={() => setShowLinks(false)}
         />
+      ) : null}
+    </div>
+  );
+}
+
+// Discreet "find yourself" search. At rest it's a single quiet vine text action
+// ("¿sos vos? buscá tu nombre"); tapping it expands a small panel with ONE
+// underline input and a live result list (name + personLine). Picking a result
+// focuses that person and collapses the search. Deliberately NOT a permanent
+// canvas search bar (DESIGN.md "No chrome").
+function SearchAffordance({
+  persons,
+  open,
+  onOpen,
+  onClose,
+  onPick,
+}: {
+  persons: PersonRow[];
+  open: boolean;
+  onOpen: () => void;
+  onClose: () => void;
+  onPick: (id: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Focus the input as it expands; clear the query when it collapses so the
+  // next "¿sos vos?" starts fresh.
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+    else setQuery("");
+  }, [open]);
+
+  // Cap results — at family scale this is plenty, and a short list stays calm.
+  const results = useMemo(() => matchPersons(persons, query).slice(0, 8), [persons, query]);
+  const trimmed = query.trim();
+
+  if (!open) {
+    return (
+      <button
+        className="pl-act"
+        onClick={onOpen}
+        style={{ position: "absolute", bottom: 18, left: 24, zIndex: 12, fontSize: 13.5, minHeight: 44 }}
+      >
+        ¿sos vos? buscá tu nombre
+      </button>
+    );
+  }
+
+  return (
+    <div
+      onKeyDown={(e) => {
+        if (e.key === "Escape") onClose();
+      }}
+      style={{
+        position: "absolute", bottom: 18, left: 24, zIndex: 14, width: "min(320px, calc(100vw - 48px))",
+        background: "var(--surface)", border: "1px solid var(--hairline)", borderRadius: 14,
+        padding: "16px 18px 12px", boxShadow: "0 30px 70px -30px rgba(34,32,27,.45)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+        <label htmlFor="pl-find-self" style={{ fontStyle: "italic", color: "var(--muted)", fontSize: 13 }}>
+          ¿sos vos? buscá tu nombre
+        </label>
+        <button
+          onClick={onClose}
+          aria-label="cerrar búsqueda"
+          style={{ border: "none", background: "none", color: "var(--muted)", cursor: "pointer", fontSize: 20, lineHeight: 1, minWidth: 32, minHeight: 32 }}
+        >
+          ×
+        </button>
+      </div>
+      <input
+        ref={inputRef}
+        id="pl-find-self"
+        className="pl-input pl-input--name"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="tu nombre"
+        autoComplete="off"
+        style={{ marginTop: 4 }}
+      />
+      {trimmed ? (
+        results.length ? (
+          <ul style={{ listStyle: "none", margin: "10px 0 2px", padding: 0, maxHeight: 240, overflowY: "auto" }}>
+            {results.map((p) => {
+              const line = personLine(p);
+              return (
+                <li key={p.id}>
+                  <button
+                    onClick={() => onPick(p.id)}
+                    style={{
+                      display: "block", width: "100%", textAlign: "left", minHeight: 44,
+                      border: "none", background: "none", cursor: "pointer", padding: "8px 4px",
+                      borderTop: "1px solid var(--hairline)",
+                    }}
+                  >
+                    <span style={{ fontFamily: "var(--font-display), Georgia, serif", fontSize: 16, color: "var(--ink)" }}>
+                      {p.name}
+                    </span>
+                    {line ? (
+                      <span style={{ display: "block", fontStyle: "italic", fontSize: 12.5, color: "var(--muted)", marginTop: 1 }}>
+                        {line}
+                      </span>
+                    ) : null}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="pl-meta" style={{ marginTop: 10 }}>
+            nadie con ese nombre todavía — probá con menos letras, o pedile a quien te invitó que te agregue.
+          </p>
+        )
       ) : null}
     </div>
   );
