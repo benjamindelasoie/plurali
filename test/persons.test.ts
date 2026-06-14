@@ -7,7 +7,7 @@ vi.mock("@/db", async () => {
 });
 
 import { migrate, reset, testDb } from "./db";
-import { createTree } from "@/lib/links";
+import { createTree, mintContributeLink } from "@/lib/links";
 import { requireTreeContext, type TreeContext } from "@/lib/auth";
 import { addPerson, addRelative, addChildToCouple, addChildWithParents, connectParent, editPerson, getTree, wouldCreateCycle } from "@/lib/persons";
 import { persons, parentChild } from "@/db/schema";
@@ -77,6 +77,29 @@ describe("person mutations (T4)", () => {
     const tree = await getTree(ctx.treeId);
     const kidsParents = tree.parentChild.filter((e) => e.childId === kid.id).map((e) => e.parentId).sort();
     expect(kidsParents).toEqual([mom.id, dad.id].sort());
+  });
+
+  it("getTree resolves authorLabel from the creating link's label (no fallback id)", async () => {
+    const owner = await freshTree();
+    // a person to anchor the labeled link on
+    const seed = await addPerson(owner, { name: "Abuela" });
+    // mint a LABELED anchored link, then build a contributor ctx from its token
+    const { token } = await mintContributeLink(owner.treeId, {
+      kind: "anchored",
+      seedPersonId: seed.id,
+      label: "Tía Marta",
+    });
+    const anchoredCtx = await requireTreeContext(token);
+    // add a person via that link — its createdByLinkId points at the labeled link
+    const added = await addPerson(anchoredCtx, { name: "Prima" });
+
+    const tree = await getTree(owner.treeId);
+    const row = tree.persons.find((p) => p.id === added.id)!;
+    expect(row.authorLabel).toBe("Tía Marta");
+
+    // a person added via the owner link (no label) gets no authorLabel — never a raw id
+    const seedRow = tree.persons.find((p) => p.id === seed.id)!;
+    expect(seedRow.authorLabel).toBeUndefined();
   });
 
   it("editPerson updates facts and bumps updatedAt (drying-ink freshness)", async () => {

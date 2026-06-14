@@ -1,6 +1,6 @@
 import { eq, and, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { trees, persons, couples, parentChild } from "@/db/schema";
+import { trees, persons, couples, parentChild, links } from "@/db/schema";
 import { personInput, addRelativeInput, addChildToCoupleInput, connectParentInput, addChildWithParentsInput } from "./validation";
 import type { TreeContext } from "./auth";
 import type { PersonInput } from "./validation";
@@ -13,13 +13,25 @@ export class MutationError extends Error {}
 
 /** Load a whole tree (name + people + edges) in a few queries (perf review: never N+1). */
 export async function getTree(treeId: string) {
-  const [meta, people, coupleRows, pcRows] = await Promise.all([
+  const [meta, people, coupleRows, pcRows, linkRows] = await Promise.all([
     db.select({ name: trees.name }).from(trees).where(eq(trees.id, treeId)).limit(1),
     db.select().from(persons).where(eq(persons.treeId, treeId)),
     db.select().from(couples).where(eq(couples.treeId, treeId)),
     db.select().from(parentChild).where(eq(parentChild.treeId, treeId)),
+    // Attribution: load the tree's links ONCE and resolve labels in memory below
+    // (NOT a query per person — family scale, but stay O(1) per row anyway).
+    db.select({ id: links.id, label: links.label }).from(links).where(eq(links.treeId, treeId)),
   ]);
-  return { name: meta[0]?.name ?? "", persons: people, couples: coupleRows, parentChild: pcRows };
+  // createdByLinkId -> the creating link's label. Most contribution is via the open
+  // and owner links (no label), so authorLabel is frequently undefined; the UI
+  // supplies a warm fallback. Anchored links may carry a label (set in plan 010).
+  const labelByLinkId = new Map(linkRows.map((l) => [l.id, l.label]));
+  const peopleWithAuthor = people.map((p) => ({
+    ...p,
+    // additive, backward-compatible field; undefined when the link has no label
+    authorLabel: (p.createdByLinkId ? labelByLinkId.get(p.createdByLinkId) : null) ?? undefined,
+  }));
+  return { name: meta[0]?.name ?? "", persons: peopleWithAuthor, couples: coupleRows, parentChild: pcRows };
 }
 
 // Cycle guard (eng-review + design-review): adding parent->child must never make
