@@ -6,6 +6,10 @@ import { TreeExplorer } from "@/components/TreeExplorer";
 // The capability token in ?k= determines the tree (the [treeId] path is cosmetic).
 // ?gql=1 reads through the PARALLEL GraphQL layer instead of getTreeAction (the
 // default). Same TreeExplorer, same data shape — a disposable learning path.
+
+// A bad/revoked/missing link is a dead end for the recipient — give them the warm,
+// actionable fieldbook line from DESIGN.md (interaction states), not a cold default.
+const LINK_DEAD = "este enlace ya no funciona — pedile uno nuevo a quien te invitó";
 export default async function TreePage({
   searchParams,
 }: {
@@ -26,15 +30,15 @@ export default async function TreePage({
         h.get("x-forwarded-proto") ??
         (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https");
       data = await fetchTreeViaGraphQL(token, `${proto}://${host}`);
-    } catch (e) {
-      err = e instanceof Error ? e.message : "Este enlace no es válido.";
+    } catch {
+      err = LINK_DEAD;
     }
-    if (!data) return <LinkError message={err ?? "Este enlace no es válido."} />;
+    if (!data) return <LinkError message={err ?? LINK_DEAD} />;
     return <TreeExplorer tree={data} treeName={data.name} token={token} />;
   }
 
   const res = await getTreeAction(token);
-  if (!res.ok) return <LinkError message={res.error} />;
+  if (!res.ok) return <LinkError message={LINK_DEAD} />;
   return <TreeExplorer tree={res.data} treeName={res.data.name} token={token} />;
 }
 
