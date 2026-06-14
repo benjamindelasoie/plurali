@@ -7,6 +7,7 @@ import "@xyflow/react/dist/style.css";
 import { PersonNode, type AddRelation } from "./PersonNode";
 import { UnionNode } from "./UnionNode";
 import { AddRelative, AddPanel, EditPerson, type Union } from "./AddRelative";
+import { LinkManager } from "./LinkManager";
 import { buildGraph, freshness, personLine, type TreeData, type PersonRow } from "@/lib/flow";
 
 const nodeTypes = { person: PersonNode, union: UnionNode };
@@ -17,13 +18,19 @@ export function TreeExplorer({
   tree,
   treeName,
   token,
+  treeId,
   initialSelected = null,
+  isOwner = false,
 }: {
   tree: TreeData;
   treeName: string;
   token: string;
+  /** The tree's id (path segment) — used to build shareable link URLs. */
+  treeId: string;
   /** Anchored-link landing: focus this person on load (if they exist in the tree). */
   initialSelected?: string | null;
+  /** Owner links get the quiet link-manager entry; contributors don't. */
+  isOwner?: boolean;
 }) {
   const router = useRouter();
   const base = useMemo(() => buildGraph(tree), [tree]);
@@ -36,6 +43,7 @@ export function TreeExplorer({
   const [selected, setSelected] = useState<string | null>(seededSelection);
   const [addMode, setAddMode] = useState(false);
   const [addIntent, setAddIntent] = useState<AddIntent | null>(null);
+  const [showLinks, setShowLinks] = useState(false);
   // Enable position transitions only after first paint, so nodes don't glide in
   // from the origin on initial load (they fade in via the .pnode animation instead).
   const [motionReady, setMotionReady] = useState(false);
@@ -153,6 +161,13 @@ export function TreeExplorer({
         >
           {treeName} · {tree.persons.length} {tree.persons.length === 1 ? "persona" : "personas"}
         </div>
+        {/* The ONE quiet owner-only control (DESIGN.md: no permanent canvas chrome,
+            no terracotta). A vine text action that opens the link manager on demand. */}
+        {isOwner && !empty ? (
+          <button className="pl-act" style={{ fontSize: 13, marginTop: 6 }} onClick={() => setShowLinks(true)}>
+            compartir / enlaces
+          </button>
+        ) : null}
       </header>
 
       {!empty ? (
@@ -240,6 +255,17 @@ export function TreeExplorer({
         <div style={{ position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)", fontStyle: "italic", color: "var(--muted)", fontSize: 12, opacity: 0.85 }}>
           arrastrá para explorar · clic en una persona para traerla al frente
         </div>
+      ) : null}
+
+      {/* Owner-only link manager (mint anchored / list / revoke), opened on demand. */}
+      {isOwner && showLinks ? (
+        <LinkManager
+          token={token}
+          treeId={treeId}
+          persons={tree.persons}
+          defaultPersonId={selected}
+          onClose={() => setShowLinks(false)}
+        />
       ) : null}
     </div>
   );

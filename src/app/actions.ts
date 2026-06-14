@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { requireTreeContext, requireOwner, TokenError } from "@/lib/auth";
 import { addPerson, addRelative, addChildToCouple, addChildWithParents, connectParent, editPerson, getTree, MutationError } from "@/lib/persons";
-import { createTree, mintContributeLink, revokeLink } from "@/lib/links";
+import { createTree, mintContributeLink, revokeLink, listLinks } from "@/lib/links";
 
 // Thin "use server" wrappers over the service layer. Every action that mutates a
 // tree resolves the capability token FIRST (the one security boundary), then runs
@@ -134,6 +134,18 @@ export async function mintLinkAction(
     const ctx = await requireOwner(token);
     const minted = await mintContributeLink(ctx.treeId, opts);
     return { ok: true, data: { token: minted.token } };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Owner-only: list this tree's links for the "manage links" view (no token hashes). */
+export async function listLinksAction(
+  token: string,
+): Promise<ActionResult<Awaited<ReturnType<typeof listLinks>>>> {
+  try {
+    const ctx = await requireOwner(token);
+    return { ok: true, data: await listLinks(ctx.treeId) };
   } catch (e) {
     return fail(e);
   }

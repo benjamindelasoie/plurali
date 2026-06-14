@@ -10,10 +10,13 @@ import { TreeExplorer } from "@/components/TreeExplorer";
 // actionable fieldbook line from DESIGN.md (interaction states), not a cold default.
 const LINK_DEAD = "este enlace ya no funciona — pedile uno nuevo a quien te invitó";
 export default async function TreePage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ treeId: string }>;
   searchParams: Promise<{ k?: string; gql?: string }>;
 }) {
+  const { treeId } = await params;
   const { k, gql } = await searchParams;
   const token = k ?? "";
 
@@ -47,7 +50,9 @@ export default async function TreePage({
         tree={data}
         treeName={data.name}
         token={token}
+        treeId={treeId}
         initialSelected={landing.seedPersonId}
+        isOwner={landing.isOwner}
       />
     );
   }
@@ -63,7 +68,9 @@ export default async function TreePage({
       tree={res.data}
       treeName={res.data.name}
       token={token}
+      treeId={treeId}
       initialSelected={landing.seedPersonId}
+      isOwner={landing.isOwner}
     />
   );
 }
