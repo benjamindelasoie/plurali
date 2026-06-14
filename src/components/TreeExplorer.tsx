@@ -522,6 +522,12 @@ function DetailCard({
               </div>
             </>
           ) : null}
+          {/* Attribution marginalia ("many hands"): the creating link's label when set,
+              else a warm fallback — NEVER a raw link id. Muted italic (.pl-meta), not
+              terracotta (terracotta is freshness-only). */}
+          <p className="pl-meta" style={{ marginTop: hasRels ? 10 : 12 }}>
+            {person.authorLabel ? `de la mano de ${person.authorLabel}` : "agregada por la familia"}
+          </p>
           <hr style={{ border: "none", borderTop: "1px solid var(--hairline)", margin: "14px 0" }} />
           <button className="pl-act" style={{ fontSize: 13 }} onClick={() => setEditing(true)}>editar sus datos</button>
           <p className="pl-meta" style={{ marginTop: 12 }}>
