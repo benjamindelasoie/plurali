@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ReactFlow, Background, BackgroundVariant, type Node } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -36,6 +36,16 @@ export function TreeExplorer({
   }, []);
 
   const refresh = useCallback(() => router.refresh(), [router]);
+
+  // Re-fit the view when the family grows: React Flow's `fitView` PROP only runs on
+  // mount, and adds happen via router.refresh() (no remount), so a newly added person
+  // can land below the fold — you can't see who you just added. Capture a fit callback
+  // on init and re-run it whenever the person count changes.
+  const fit = useRef<(() => void) | null>(null);
+  const personCount = tree.persons.length;
+  useEffect(() => {
+    fit.current?.();
+  }, [personCount]);
 
   const personById = useMemo(() => new Map(tree.persons.map((p) => [p.id, p])), [tree.persons]);
   // Unions for any person (couple edges they belong to) -> the union picker.
@@ -156,6 +166,7 @@ export function TreeExplorer({
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
+        onInit={(inst) => { fit.current = () => inst.fitView({ padding: 0.25, duration: 400 }); }}
         onNodeClick={onNodeClick}
         onPaneClick={() => setSelected(null)}
         nodesDraggable={false}
