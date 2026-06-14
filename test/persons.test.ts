@@ -187,4 +187,18 @@ describe("remarriage, two parents & half-siblings (union-first)", () => {
     const parents = pc.filter((e) => e.childId === kid.id).map((e) => e.parentId);
     expect(parents).toEqual([solo.id]); // only the known parent
   });
+
+  // Atomicity (plan 008): the transactional addChildWithParents must commit ALL of its
+  // dependent writes together — child + inline other parent + couple + BOTH edges. If the
+  // transaction were leaking partial state, this complete-graph assertion would fail. (True
+  // mid-transaction-rollback fault injection is a noted follow-up; pglite has no easy hook.)
+  it("addChildWithParents creates child + other parent + couple + both edges atomically", async () => {
+    const ctx = await freshTree();
+    const parent = await addPerson(ctx, { name: "Ana" });
+    const child = await addChildWithParents(ctx, { parentId: parent.id, otherParentName: "Luis", child: { name: "Sofi" } });
+    const tree = await getTree(ctx.treeId);
+    expect(tree.persons.map((p) => p.name).sort()).toEqual(["Ana", "Luis", "Sofi"]);
+    expect(tree.couples).toHaveLength(1);
+    expect(tree.parentChild.filter((e) => e.childId === child.id)).toHaveLength(2);
+  });
 });
