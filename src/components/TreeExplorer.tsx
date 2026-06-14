@@ -136,7 +136,12 @@ export function TreeExplorer({
         <div className="display" style={{ fontSize: 22 }}>
           plurali<span style={{ color: "var(--vine)" }}>.</span>
         </div>
-        <div style={{ fontStyle: "italic", color: "var(--muted)", fontSize: 13, marginTop: 2 }}>
+        <div
+          style={{
+            fontStyle: "italic", color: "var(--muted)", fontSize: 13, marginTop: 2,
+            maxWidth: "calc(100vw - 220px)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+          }}
+        >
           {treeName} · {tree.persons.length} {tree.persons.length === 1 ? "persona" : "personas"}
         </div>
       </header>
@@ -154,8 +159,9 @@ export function TreeExplorer({
       {addMode && !addIntent ? (
         <div
           style={{
-            position: "absolute", top: 22, left: "50%", transform: "translateX(-50%)", zIndex: 11,
+            position: "absolute", top: 64, left: "50%", transform: "translateX(-50%)", zIndex: 11,
             fontStyle: "italic", color: "var(--muted)", fontSize: 13.5, textAlign: "center",
+            maxWidth: "min(560px, calc(100vw - 48px))",
           }}
         >
           pasá el mouse sobre una persona y elegí qué sumar — arriba madre/padre, al lado pareja, abajo hijo/a
