@@ -20,8 +20,8 @@ the plan fully, honor its STOP conditions, update your row when done.
 | 009 | Harden host-origin in GraphQL read path | P2 | S | — | DONE (`f051ace`) |
 | 010 | Owner link management + anchored-link landing | P2 | M | — | DONE (`c991dba`,`df7eb06`,`ff1220b`) |
 | 011 | "Find yourself" search for open-link recipients | P2 | M | — | DONE (`b44e1cd`,`db720df`) |
-| 012 | Attribution UI ("de la mano de …") | P3 | M | — | IN PROGRESS |
-| 013 | Mobile contribution view — DESIGN/SPIKE | P2 | L | — | TODO |
+| 012 | Attribution UI ("de la mano de …") | P3 | M | — | DONE (`f225513`,`4c3aa2f`) |
+| 013 | Mobile contribution view — DESIGN/SPIKE | P2 | L | — | DONE (spike: `013-mobile-contribution-DESIGN.md`) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (reason) | REJECTED (rationale)
 
