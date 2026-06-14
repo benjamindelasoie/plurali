@@ -1,4 +1,4 @@
-import { getTreeAction } from "@/app/actions";
+import { getTreeAction, getLinkContextAction } from "@/app/actions";
 import { fetchTreeViaGraphQL } from "@/lib/graphqlClient";
 import { TreeExplorer } from "@/components/TreeExplorer";
 
@@ -38,12 +38,34 @@ export default async function TreePage({
       err = LINK_DEAD;
     }
     if (!data) return <LinkError message={err ?? LINK_DEAD} />;
-    return <TreeExplorer tree={data} treeName={data.name} token={token} />;
+    // The link's landing context (where the recipient lands + owner gating) comes
+    // from the same token; the GraphQL fetch already proved it valid, so this agrees.
+    const ctx = await getLinkContextAction(token);
+    const landing = ctx.ok ? ctx.data : { isOwner: false, seedPersonId: null };
+    return (
+      <TreeExplorer
+        tree={data}
+        treeName={data.name}
+        token={token}
+        initialSelected={landing.seedPersonId}
+      />
+    );
   }
 
   const res = await getTreeAction(token);
   if (!res.ok) return <LinkError message={LINK_DEAD} />;
-  return <TreeExplorer tree={res.data} treeName={res.data.name} token={token} />;
+  // getTreeAction already validated the token; resolving the landing context (anchored
+  // seed person + owner flag) reads the SAME token, so the two views stay consistent.
+  const ctx = await getLinkContextAction(token);
+  const landing = ctx.ok ? ctx.data : { isOwner: false, seedPersonId: null };
+  return (
+    <TreeExplorer
+      tree={res.data}
+      treeName={res.data.name}
+      token={token}
+      initialSelected={landing.seedPersonId}
+    />
+  );
 }
 
 function LinkError({ message }: { message: string }) {

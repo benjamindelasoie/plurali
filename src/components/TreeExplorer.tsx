@@ -17,14 +17,23 @@ export function TreeExplorer({
   tree,
   treeName,
   token,
+  initialSelected = null,
 }: {
   tree: TreeData;
   treeName: string;
   token: string;
+  /** Anchored-link landing: focus this person on load (if they exist in the tree). */
+  initialSelected?: string | null;
 }) {
   const router = useRouter();
   const base = useMemo(() => buildGraph(tree), [tree]);
-  const [selected, setSelected] = useState<string | null>(null);
+  // Anchored landing: open on the seeded person's card — but only if they're actually
+  // in the tree (a stale/foreign seed falls back to no selection, never a crash).
+  const seededSelection = useMemo(
+    () => (initialSelected && tree.persons.some((p) => p.id === initialSelected) ? initialSelected : null),
+    [initialSelected, tree.persons],
+  );
+  const [selected, setSelected] = useState<string | null>(seededSelection);
   const [addMode, setAddMode] = useState(false);
   const [addIntent, setAddIntent] = useState<AddIntent | null>(null);
   // Enable position transitions only after first paint, so nodes don't glide in
@@ -172,7 +181,19 @@ export function TreeExplorer({
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
-        onInit={(inst) => { fit.current = () => inst.fitView({ padding: 0.25, duration: 400 }); }}
+        onInit={(inst) => {
+          fit.current = () => inst.fitView({ padding: 0.25, duration: 400 });
+          // Anchored landing: ease the seeded person's card to center on first paint,
+          // so "sos vos? agregá tu familia" opens ON them rather than on the whole mesh.
+          // buildGraph positions are the card's top-left; person cards are 172×76 (flow.ts),
+          // so center = position + half-card.
+          if (seededSelection) {
+            const n = inst.getNode(seededSelection);
+            if (n) {
+              inst.setCenter(n.position.x + 86, n.position.y + 38, { zoom: 1, duration: 500 });
+            }
+          }
+        }}
         onNodeClick={onNodeClick}
         onPaneClick={() => setSelected(null)}
         nodesDraggable={false}

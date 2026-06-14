@@ -108,6 +108,23 @@ export async function getTreeAction(token: string): Promise<ActionResult<Awaited
   }
 }
 
+/**
+ * Resolve the LANDING context of a link for any valid token: where the recipient
+ * lands (anchored seedPersonId) and whether they own the tree (gates the link
+ * manager). Mirrors getTreeAction's token read so the page renders one consistent
+ * view — call it only after getTreeAction has already succeeded (they agree).
+ */
+export async function getLinkContextAction(
+  token: string,
+): Promise<ActionResult<{ isOwner: boolean; seedPersonId: string | null }>> {
+  try {
+    const ctx = await requireTreeContext(token);
+    return { ok: true, data: { isOwner: ctx.isOwner, seedPersonId: ctx.seedPersonId } };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
 /** Owner-only: mint an open or anchored contribute link. Returns the raw token once. */
 export async function mintLinkAction(
   token: string,
