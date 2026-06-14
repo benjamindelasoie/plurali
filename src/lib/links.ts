@@ -1,6 +1,6 @@
 import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
-import { trees, links } from "@/db/schema";
+import { trees, links, persons } from "@/db/schema";
 import { generateToken, hashToken } from "./tokens";
 
 // T3 — capability links (eng-review + design-review).
@@ -37,6 +37,18 @@ export async function mintContributeLink(
 ): Promise<MintedLink> {
   if (opts.kind === "anchored" && !opts.seedPersonId) {
     throw new Error("Un enlace anclado necesita una persona de referencia.");
+  }
+  // SECURITY-02: an anchored link's seed person MUST belong to this tree — otherwise
+  // an owner could mint a link that lands recipients on a person from another tree.
+  if (opts.kind === "anchored" && opts.seedPersonId) {
+    const [seed] = await db
+      .select({ id: persons.id })
+      .from(persons)
+      .where(and(eq(persons.id, opts.seedPersonId), eq(persons.treeId, treeId)))
+      .limit(1);
+    if (!seed) {
+      throw new Error("La persona de referencia no pertenece a este árbol.");
+    }
   }
   const token = generateToken();
   const [link] = await db
