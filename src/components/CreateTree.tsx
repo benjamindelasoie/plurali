@@ -174,7 +174,6 @@ export function CreateTree() {
             <button className="pl-act" onClick={() => copy(admin, "Llave copiada")}>Copiar</button>
           </div>
           <div className="pl-actions">
-            <button className="pl-btn pl-btn--ghost" onClick={() => copy(admin, "Llave copiada")}>Copiar</button>
             <button className="pl-btn pl-btn--ghost" onClick={downloadAdmin}>Descargar</button>
           </div>
         </section>
