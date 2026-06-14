@@ -1,4 +1,3 @@
-import { headers } from "next/headers";
 import { getTreeAction } from "@/app/actions";
 import { fetchTreeViaGraphQL } from "@/lib/graphqlClient";
 import { TreeExplorer } from "@/components/TreeExplorer";
@@ -24,12 +23,17 @@ export default async function TreePage({
     let data: Awaited<ReturnType<typeof fetchTreeViaGraphQL>> | null = null;
     let err: string | null = null;
     try {
-      const h = await headers();
-      const host = h.get("host") ?? "localhost:3000";
-      const proto =
-        h.get("x-forwarded-proto") ??
-        (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https");
-      data = await fetchTreeViaGraphQL(token, `${proto}://${host}`);
+      // Pin the self-fetch origin to a TRUSTED source — never the inbound Host header,
+      // which an attacker can poison to redirect this token-bearing request elsewhere.
+      // Prefer explicit APP_ORIGIN, then Vercel-injected URLs, then the dev fallback.
+      const origin =
+        process.env.APP_ORIGIN ??
+        (process.env.VERCEL_PROJECT_PRODUCTION_URL
+          ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+          : process.env.VERCEL_URL
+            ? `https://${process.env.VERCEL_URL}`
+            : "http://localhost:3000");
+      data = await fetchTreeViaGraphQL(token, origin);
     } catch {
       err = LINK_DEAD;
     }
