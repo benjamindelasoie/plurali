@@ -54,6 +54,16 @@ describe("person mutations (T4)", () => {
     expect(tree.parentChild[0]).toMatchObject({ parentId: parent.id, childId: child.id });
   });
 
+  it("addRelative rejects a relationTo from another tree", async () => {
+    const a = await freshTree();
+    const { token: tokenB } = await createTree("Otra Familia");
+    const ctxB = await requireTreeContext(tokenB);
+    const foreign = await addPerson(ctxB, { name: "Ajeno" });
+    await expect(
+      addRelative(a, { person: { name: "Intruso" }, relationTo: foreign.id, relation: "partner" })
+    ).rejects.toBeTruthy();
+  });
+
   it("the data model supports a child with TWO parents (graph, not tree)", async () => {
     const ctx = await freshTree();
     // direct inserts simulate the future connect-existing op; proves the schema is a graph

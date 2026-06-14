@@ -86,6 +86,19 @@ export async function addPerson(ctx: TreeContext, rawInput: unknown) {
  */
 export async function addRelative(ctx: TreeContext, rawInput: unknown) {
   const { person, relationTo, relation } = addRelativeInput.parse(rawInput);
+
+  // Tenant check (match connectParent/addChildWithParents): the caller-supplied
+  // relationTo must belong to THIS tree before we write any edge — and before we
+  // insert the new person, so a bad relationTo can't strand an orphan row.
+  if (relationTo) {
+    const [rel] = await db
+      .select({ id: persons.id })
+      .from(persons)
+      .where(and(eq(persons.id, relationTo), eq(persons.treeId, ctx.treeId)))
+      .limit(1);
+    if (!rel) throw new MutationError("No se encontró la persona.");
+  }
+
   const [p] = await db
     .insert(persons)
     .values({ ...fields(ctx.treeId, person), createdByLinkId: ctx.linkId })
