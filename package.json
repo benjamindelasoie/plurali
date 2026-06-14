@@ -20,7 +20,6 @@
     "@escape.tech/graphql-armor": "^3.2.0",
     "@neondatabase/serverless": "^1.1.0",
     "@xyflow/react": "^12.10.2",
-    "d3-force": "^3.0.0",
     "drizzle-orm": "^0.45.2",
     "graphql": "^16.14.0",
     "graphql-yoga": "^5.21.0",
