@@ -18,8 +18,8 @@ the plan fully, honor its STOP conditions, update your row when done.
 | 007 | `addRelative` tenant check on `relationTo` | P1 | S | — | DONE (`bc8448f`) |
 | 008 | Atomic multi-write mutations (transaction) | P2 | M | 007 | DONE (`0be5abd`,`47e5a88`) |
 | 009 | Harden host-origin in GraphQL read path | P2 | S | — | DONE (`f051ace`) |
-| 010 | Owner link management + anchored-link landing | P2 | M | — | TODO |
-| 011 | "Find yourself" search for open-link recipients | P2 | M | — | TODO |
+| 010 | Owner link management + anchored-link landing | P2 | M | — | DONE (`c991dba`,`df7eb06`,`ff1220b`) |
+| 011 | "Find yourself" search for open-link recipients | P2 | M | — | IN PROGRESS |
 | 012 | Attribution UI ("de la mano de …") | P3 | M | — | TODO |
 | 013 | Mobile contribution view — DESIGN/SPIKE | P2 | L | — | TODO |
 
