@@ -317,14 +317,13 @@ function SearchAffordance({
   onPick: (id: string) => void;
 }) {
   const [query, setQuery] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Focus the input as it expands; clear the query when it collapses so the
-  // next "¿sos vos?" starts fresh.
-  useEffect(() => {
-    if (open) inputRef.current?.focus();
-    else setQuery("");
-  }, [open]);
+  // Clear the query on every close/pick — in the event handlers, NOT an effect
+  // (setState-in-effect is a lint error and an anti-pattern) — so the next
+  // "¿sos vos?" starts fresh. The input autofocuses on mount (it only mounts when
+  // the panel is open), so no focus effect is needed.
+  const close = () => { setQuery(""); onClose(); };
+  const pick = (id: string) => { setQuery(""); onPick(id); };
 
   // Cap results — at family scale this is plenty, and a short list stays calm.
   const results = useMemo(() => matchPersons(persons, query).slice(0, 8), [persons, query]);
@@ -345,7 +344,7 @@ function SearchAffordance({
   return (
     <div
       onKeyDown={(e) => {
-        if (e.key === "Escape") onClose();
+        if (e.key === "Escape") close();
       }}
       style={{
         position: "absolute", bottom: 18, left: 24, zIndex: 14, width: "min(320px, calc(100vw - 48px))",
@@ -358,7 +357,7 @@ function SearchAffordance({
           ¿sos vos? buscá tu nombre
         </label>
         <button
-          onClick={onClose}
+          onClick={close}
           aria-label="cerrar búsqueda"
           style={{ border: "none", background: "none", color: "var(--muted)", cursor: "pointer", fontSize: 20, lineHeight: 1, minWidth: 32, minHeight: 32 }}
         >
@@ -366,8 +365,8 @@ function SearchAffordance({
         </button>
       </div>
       <input
-        ref={inputRef}
         id="pl-find-self"
+        autoFocus
         className="pl-input pl-input--name"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
@@ -383,7 +382,7 @@ function SearchAffordance({
               return (
                 <li key={p.id}>
                   <button
-                    onClick={() => onPick(p.id)}
+                    onClick={() => pick(p.id)}
                     style={{
                       display: "block", width: "100%", textAlign: "left", minHeight: 44,
                       border: "none", background: "none", cursor: "pointer", padding: "8px 4px",
