@@ -25,6 +25,13 @@ the plan fully, honor its STOP conditions, update your row when done.
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (reason) | REJECTED (rationale)
 
+**All findings addressed (2026-06-14).** 001–012 implemented + verified; 013 delivered
+as a design/spike proposal (`013-mobile-contribution-DESIGN.md`) for `/design-review`
+before any build. Branch green: `npm run lint` 0, `npx tsc --noEmit` 0, 50 unit tests +
+1 live-Neon smoke pass, `npm run build` 0. Follow-up `fix(qa)` commit cleared a
+`react-hooks/set-state-in-effect` lint error introduced by 011's search effect (the 011
+plan omitted lint as a gate — noted for future plans).
+
 ## Dependency notes
 
 - **008 depends on 007** — both edit `src/lib/persons.ts`; land the tenant check first
