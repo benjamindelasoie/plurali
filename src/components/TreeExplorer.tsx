@@ -279,7 +279,7 @@ export function TreeExplorer({
       ) : null}
 
       {!empty && !addMode && !searchOpen ? (
-        <div style={{ position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)", fontStyle: "italic", color: "var(--muted)", fontSize: 12, opacity: 0.85 }}>
+        <div className="pl-explore-hint" style={{ position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)", fontStyle: "italic", color: "var(--muted)", fontSize: 12, opacity: 0.85 }}>
           arrastrá para explorar · clic en una persona para traerla al frente
         </div>
       ) : null}
