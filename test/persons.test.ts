@@ -7,7 +7,7 @@ vi.mock("@/db", async () => {
 });
 
 import { migrate, reset, testDb } from "./db";
-import { createTree } from "@/lib/links";
+import { createTree, mintContributeLink } from "@/lib/links";
 import { requireTreeContext, type TreeContext } from "@/lib/auth";
 import { addPerson, addRelative, addChildToCouple, addChildWithParents, connectParent, editPerson, getTree, wouldCreateCycle } from "@/lib/persons";
 import { persons, parentChild } from "@/db/schema";
@@ -54,6 +54,16 @@ describe("person mutations (T4)", () => {
     expect(tree.parentChild[0]).toMatchObject({ parentId: parent.id, childId: child.id });
   });
 
+  it("addRelative rejects a relationTo from another tree", async () => {
+    const a = await freshTree();
+    const { token: tokenB } = await createTree("Otra Familia");
+    const ctxB = await requireTreeContext(tokenB);
+    const foreign = await addPerson(ctxB, { name: "Ajeno" });
+    await expect(
+      addRelative(a, { person: { name: "Intruso" }, relationTo: foreign.id, relation: "partner" })
+    ).rejects.toBeTruthy();
+  });
+
   it("the data model supports a child with TWO parents (graph, not tree)", async () => {
     const ctx = await freshTree();
     // direct inserts simulate the future connect-existing op; proves the schema is a graph
@@ -67,6 +77,29 @@ describe("person mutations (T4)", () => {
     const tree = await getTree(ctx.treeId);
     const kidsParents = tree.parentChild.filter((e) => e.childId === kid.id).map((e) => e.parentId).sort();
     expect(kidsParents).toEqual([mom.id, dad.id].sort());
+  });
+
+  it("getTree resolves authorLabel from the creating link's label (no fallback id)", async () => {
+    const owner = await freshTree();
+    // a person to anchor the labeled link on
+    const seed = await addPerson(owner, { name: "Abuela" });
+    // mint a LABELED anchored link, then build a contributor ctx from its token
+    const { token } = await mintContributeLink(owner.treeId, {
+      kind: "anchored",
+      seedPersonId: seed.id,
+      label: "Tía Marta",
+    });
+    const anchoredCtx = await requireTreeContext(token);
+    // add a person via that link — its createdByLinkId points at the labeled link
+    const added = await addPerson(anchoredCtx, { name: "Prima" });
+
+    const tree = await getTree(owner.treeId);
+    const row = tree.persons.find((p) => p.id === added.id)!;
+    expect(row.authorLabel).toBe("Tía Marta");
+
+    // a person added via the owner link (no label) gets no authorLabel — never a raw id
+    const seedRow = tree.persons.find((p) => p.id === seed.id)!;
+    expect(seedRow.authorLabel).toBeUndefined();
   });
 
   it("editPerson updates facts and bumps updatedAt (drying-ink freshness)", async () => {
@@ -176,5 +209,19 @@ describe("remarriage, two parents & half-siblings (union-first)", () => {
     expect(couples).toHaveLength(0); // no union created
     const parents = pc.filter((e) => e.childId === kid.id).map((e) => e.parentId);
     expect(parents).toEqual([solo.id]); // only the known parent
+  });
+
+  // Atomicity (plan 008): the transactional addChildWithParents must commit ALL of its
+  // dependent writes together — child + inline other parent + couple + BOTH edges. If the
+  // transaction were leaking partial state, this complete-graph assertion would fail. (True
+  // mid-transaction-rollback fault injection is a noted follow-up; pglite has no easy hook.)
+  it("addChildWithParents creates child + other parent + couple + both edges atomically", async () => {
+    const ctx = await freshTree();
+    const parent = await addPerson(ctx, { name: "Ana" });
+    const child = await addChildWithParents(ctx, { parentId: parent.id, otherParentName: "Luis", child: { name: "Sofi" } });
+    const tree = await getTree(ctx.treeId);
+    expect(tree.persons.map((p) => p.name).sort()).toEqual(["Ana", "Luis", "Sofi"]);
+    expect(tree.couples).toHaveLength(1);
+    expect(tree.parentChild.filter((e) => e.childId === child.id)).toHaveLength(2);
   });
 });

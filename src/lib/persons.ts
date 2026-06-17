@@ -1,6 +1,6 @@
 import { eq, and, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { trees, persons, couples, parentChild } from "@/db/schema";
+import { trees, persons, couples, parentChild, links } from "@/db/schema";
 import { personInput, addRelativeInput, addChildToCoupleInput, connectParentInput, addChildWithParentsInput } from "./validation";
 import type { TreeContext } from "./auth";
 import type { PersonInput } from "./validation";
@@ -13,13 +13,25 @@ export class MutationError extends Error {}
 
 /** Load a whole tree (name + people + edges) in a few queries (perf review: never N+1). */
 export async function getTree(treeId: string) {
-  const [meta, people, coupleRows, pcRows] = await Promise.all([
+  const [meta, people, coupleRows, pcRows, linkRows] = await Promise.all([
     db.select({ name: trees.name }).from(trees).where(eq(trees.id, treeId)).limit(1),
     db.select().from(persons).where(eq(persons.treeId, treeId)),
     db.select().from(couples).where(eq(couples.treeId, treeId)),
     db.select().from(parentChild).where(eq(parentChild.treeId, treeId)),
+    // Attribution: load the tree's links ONCE and resolve labels in memory below
+    // (NOT a query per person — family scale, but stay O(1) per row anyway).
+    db.select({ id: links.id, label: links.label }).from(links).where(eq(links.treeId, treeId)),
   ]);
-  return { name: meta[0]?.name ?? "", persons: people, couples: coupleRows, parentChild: pcRows };
+  // createdByLinkId -> the creating link's label. Most contribution is via the open
+  // and owner links (no label), so authorLabel is frequently undefined; the UI
+  // supplies a warm fallback. Anchored links may carry a label (set in plan 010).
+  const labelByLinkId = new Map(linkRows.map((l) => [l.id, l.label]));
+  const peopleWithAuthor = people.map((p) => ({
+    ...p,
+    // additive, backward-compatible field; undefined when the link has no label
+    authorLabel: (p.createdByLinkId ? labelByLinkId.get(p.createdByLinkId) : null) ?? undefined,
+  }));
+  return { name: meta[0]?.name ?? "", persons: peopleWithAuthor, couples: coupleRows, parentChild: pcRows };
 }
 
 // Cycle guard (eng-review + design-review): adding parent->child must never make
@@ -86,35 +98,65 @@ export async function addPerson(ctx: TreeContext, rawInput: unknown) {
  */
 export async function addRelative(ctx: TreeContext, rawInput: unknown) {
   const { person, relationTo, relation } = addRelativeInput.parse(rawInput);
-  const [p] = await db
-    .insert(persons)
-    .values({ ...fields(ctx.treeId, person), createdByLinkId: ctx.linkId })
-    .returning();
 
-  if (relationTo && relation) {
+  // No relationTo => single standalone insert, no transaction needed.
+  if (!relationTo || !relation) {
+    const [p] = await db
+      .insert(persons)
+      .values({ ...fields(ctx.treeId, person), createdByLinkId: ctx.linkId })
+      .returning();
+    return p;
+  }
+
+  // Tenant check (match connectParent/addChildWithParents): the caller-supplied
+  // relationTo must belong to THIS tree before we write any edge.
+  const [rel] = await db
+    .select({ id: persons.id })
+    .from(persons)
+    .where(and(eq(persons.id, relationTo), eq(persons.treeId, ctx.treeId)))
+    .limit(1);
+  if (!rel) throw new MutationError("No se encontró la persona.");
+
+  // Cycle pre-check runs on the module `db` BEFORE opening the transaction. wouldCreateCycle
+  // reads `db` itself; on a single-connection driver (pglite in tests) issuing that read from
+  // inside an open transaction on the same connection deadlocks — so we check first, then do
+  // the writes atomically. (The plan explicitly endorses keeping the cycle read as a pre-check
+  // on `db`.) The not-yet-inserted person is represented by a sentinel id that is absent from
+  // the committed graph: a brand-new node has no edges, so it can never close a cycle — the
+  // check depends only on the existing relationTo node, exactly as before. The person insert +
+  // the edge insert then run together in the transaction so a failed edge can't strand an
+  // orphan person row.
+  const NEW = "__new__"; // sentinel for the about-to-be-created person (no edges yet)
+  if (relation === "child" && (await wouldCreateCycle(ctx.treeId, relationTo, NEW))) {
+    throw new MutationError("Eso crearía un ciclo en el árbol.");
+  }
+  if (relation === "parent" && (await wouldCreateCycle(ctx.treeId, NEW, relationTo))) {
+    throw new MutationError("Eso crearía un ciclo en el árbol.");
+  }
+
+  return await db.transaction(async (tx) => {
+    const [p] = await tx
+      .insert(persons)
+      .values({ ...fields(ctx.treeId, person), createdByLinkId: ctx.linkId })
+      .returning();
+
     if (relation === "partner") {
-      await db.insert(couples).values({
+      await tx.insert(couples).values({
         treeId: ctx.treeId, personA: relationTo, personB: p.id, createdByLinkId: ctx.linkId,
       });
     } else if (relation === "child") {
       // relationTo is the parent; p is the child
-      if (await wouldCreateCycle(ctx.treeId, relationTo, p.id)) {
-        throw new MutationError("Eso crearía un ciclo en el árbol.");
-      }
-      await db.insert(parentChild).values({
+      await tx.insert(parentChild).values({
         treeId: ctx.treeId, parentId: relationTo, childId: p.id, createdByLinkId: ctx.linkId,
       });
     } else if (relation === "parent") {
       // p is the parent; relationTo is the child
-      if (await wouldCreateCycle(ctx.treeId, p.id, relationTo)) {
-        throw new MutationError("Eso crearía un ciclo en el árbol.");
-      }
-      await db.insert(parentChild).values({
+      await tx.insert(parentChild).values({
         treeId: ctx.treeId, parentId: p.id, childId: relationTo, createdByLinkId: ctx.linkId,
       });
     }
-  }
-  return p;
+    return p;
+  });
 }
 
 /** Edit a person's facts. Bumps updatedAt (→ drying-ink fresh). Preserves creator. */
@@ -137,22 +179,26 @@ export async function editPerson(ctx: TreeContext, personId: string, rawInput: u
  */
 export async function addChildToCouple(ctx: TreeContext, rawInput: unknown) {
   const { coupleId, child } = addChildToCoupleInput.parse(rawInput);
-  const [couple] = await db
-    .select()
-    .from(couples)
-    .where(and(eq(couples.id, coupleId), eq(couples.treeId, ctx.treeId)))
-    .limit(1);
-  if (!couple) throw new MutationError("No se encontró ese matrimonio.");
+  // Lookup + child insert + both parent edges are one transaction: a missing couple or
+  // a failed edge insert must not leave a child stranded with one/zero parents.
+  return await db.transaction(async (tx) => {
+    const [couple] = await tx
+      .select()
+      .from(couples)
+      .where(and(eq(couples.id, coupleId), eq(couples.treeId, ctx.treeId)))
+      .limit(1);
+    if (!couple) throw new MutationError("No se encontró ese matrimonio.");
 
-  const [c] = await db
-    .insert(persons)
-    .values({ ...fields(ctx.treeId, child), createdByLinkId: ctx.linkId })
-    .returning();
-  await db.insert(parentChild).values([
-    { treeId: ctx.treeId, parentId: couple.personA, childId: c.id, createdByLinkId: ctx.linkId },
-    { treeId: ctx.treeId, parentId: couple.personB, childId: c.id, createdByLinkId: ctx.linkId },
-  ]);
-  return c;
+    const [c] = await tx
+      .insert(persons)
+      .values({ ...fields(ctx.treeId, child), createdByLinkId: ctx.linkId })
+      .returning();
+    await tx.insert(parentChild).values([
+      { treeId: ctx.treeId, parentId: couple.personA, childId: c.id, createdByLinkId: ctx.linkId },
+      { treeId: ctx.treeId, parentId: couple.personB, childId: c.id, createdByLinkId: ctx.linkId },
+    ]);
+    return c;
+  });
 }
 
 /**
@@ -196,34 +242,40 @@ export async function connectParent(ctx: TreeContext, rawInput: unknown) {
 export async function addChildWithParents(ctx: TreeContext, rawInput: unknown) {
   const { parentId, otherParentName, child } = addChildWithParentsInput.parse(rawInput);
 
-  const [parent] = await db
-    .select({ id: persons.id })
-    .from(persons)
-    .where(and(eq(persons.id, parentId), eq(persons.treeId, ctx.treeId)))
-    .limit(1);
-  if (!parent) throw new MutationError("No se encontró la persona.");
+  // Tenant lookup + child + (optional) other parent + couple + both edges are one
+  // transaction: with otherParentName this is up to 5 dependent writes, and any partial
+  // failure would otherwise leave a half-built family (e.g. a couple with no children, or
+  // a child with one parent). All-or-nothing keeps the archive consistent.
+  return await db.transaction(async (tx) => {
+    const [parent] = await tx
+      .select({ id: persons.id })
+      .from(persons)
+      .where(and(eq(persons.id, parentId), eq(persons.treeId, ctx.treeId)))
+      .limit(1);
+    if (!parent) throw new MutationError("No se encontró la persona.");
 
-  const [c] = await db
-    .insert(persons)
-    .values({ ...fields(ctx.treeId, child), createdByLinkId: ctx.linkId })
-    .returning();
-
-  if (otherParentName) {
-    const [other] = await db
+    const [c] = await tx
       .insert(persons)
-      .values({ treeId: ctx.treeId, name: otherParentName, living: true, createdByLinkId: ctx.linkId })
+      .values({ ...fields(ctx.treeId, child), createdByLinkId: ctx.linkId })
       .returning();
-    await db.insert(couples).values({
-      treeId: ctx.treeId, personA: parentId, personB: other.id, createdByLinkId: ctx.linkId,
-    });
-    await db.insert(parentChild).values([
-      { treeId: ctx.treeId, parentId, childId: c.id, createdByLinkId: ctx.linkId },
-      { treeId: ctx.treeId, parentId: other.id, childId: c.id, createdByLinkId: ctx.linkId },
-    ]);
-  } else {
-    await db.insert(parentChild).values({
-      treeId: ctx.treeId, parentId, childId: c.id, createdByLinkId: ctx.linkId,
-    });
-  }
-  return c;
+
+    if (otherParentName) {
+      const [other] = await tx
+        .insert(persons)
+        .values({ treeId: ctx.treeId, name: otherParentName, living: true, createdByLinkId: ctx.linkId })
+        .returning();
+      await tx.insert(couples).values({
+        treeId: ctx.treeId, personA: parentId, personB: other.id, createdByLinkId: ctx.linkId,
+      });
+      await tx.insert(parentChild).values([
+        { treeId: ctx.treeId, parentId, childId: c.id, createdByLinkId: ctx.linkId },
+        { treeId: ctx.treeId, parentId: other.id, childId: c.id, createdByLinkId: ctx.linkId },
+      ]);
+    } else {
+      await tx.insert(parentChild).values({
+        treeId: ctx.treeId, parentId, childId: c.id, createdByLinkId: ctx.linkId,
+      });
+    }
+    return c;
+  });
 }

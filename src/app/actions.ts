@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { requireTreeContext, requireOwner, TokenError } from "@/lib/auth";
 import { addPerson, addRelative, addChildToCouple, addChildWithParents, connectParent, editPerson, getTree, MutationError } from "@/lib/persons";
-import { createTree, mintContributeLink, revokeLink } from "@/lib/links";
+import { createTree, mintContributeLink, revokeLink, listLinks } from "@/lib/links";
 
 // Thin "use server" wrappers over the service layer. Every action that mutates a
 // tree resolves the capability token FIRST (the one security boundary), then runs
@@ -108,6 +108,23 @@ export async function getTreeAction(token: string): Promise<ActionResult<Awaited
   }
 }
 
+/**
+ * Resolve the LANDING context of a link for any valid token: where the recipient
+ * lands (anchored seedPersonId) and whether they own the tree (gates the link
+ * manager). Mirrors getTreeAction's token read so the page renders one consistent
+ * view — call it only after getTreeAction has already succeeded (they agree).
+ */
+export async function getLinkContextAction(
+  token: string,
+): Promise<ActionResult<{ isOwner: boolean; seedPersonId: string | null }>> {
+  try {
+    const ctx = await requireTreeContext(token);
+    return { ok: true, data: { isOwner: ctx.isOwner, seedPersonId: ctx.seedPersonId } };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
 /** Owner-only: mint an open or anchored contribute link. Returns the raw token once. */
 export async function mintLinkAction(
   token: string,
@@ -117,6 +134,18 @@ export async function mintLinkAction(
     const ctx = await requireOwner(token);
     const minted = await mintContributeLink(ctx.treeId, opts);
     return { ok: true, data: { token: minted.token } };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Owner-only: list this tree's links for the "manage links" view (no token hashes). */
+export async function listLinksAction(
+  token: string,
+): Promise<ActionResult<Awaited<ReturnType<typeof listLinks>>>> {
+  try {
+    const ctx = await requireOwner(token);
+    return { ok: true, data: await listLinks(ctx.treeId) };
   } catch (e) {
     return fail(e);
   }

@@ -1,16 +1,22 @@
-import { headers } from "next/headers";
-import { getTreeAction } from "@/app/actions";
+import { getTreeAction, getLinkContextAction } from "@/app/actions";
 import { fetchTreeViaGraphQL } from "@/lib/graphqlClient";
 import { TreeExplorer } from "@/components/TreeExplorer";
 
 // The capability token in ?k= determines the tree (the [treeId] path is cosmetic).
 // ?gql=1 reads through the PARALLEL GraphQL layer instead of getTreeAction (the
 // default). Same TreeExplorer, same data shape — a disposable learning path.
+
+// A bad/revoked/missing link is a dead end for the recipient — give them the warm,
+// actionable fieldbook line from DESIGN.md (interaction states), not a cold default.
+const LINK_DEAD = "este enlace ya no funciona — pedile uno nuevo a quien te invitó";
 export default async function TreePage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ treeId: string }>;
   searchParams: Promise<{ k?: string; gql?: string }>;
 }) {
+  const { treeId } = await params;
   const { k, gql } = await searchParams;
   const token = k ?? "";
 
@@ -20,22 +26,53 @@ export default async function TreePage({
     let data: Awaited<ReturnType<typeof fetchTreeViaGraphQL>> | null = null;
     let err: string | null = null;
     try {
-      const h = await headers();
-      const host = h.get("host") ?? "localhost:3000";
-      const proto =
-        h.get("x-forwarded-proto") ??
-        (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https");
-      data = await fetchTreeViaGraphQL(token, `${proto}://${host}`);
-    } catch (e) {
-      err = e instanceof Error ? e.message : "Este enlace no es válido.";
+      // Pin the self-fetch origin to a TRUSTED source — never the inbound Host header,
+      // which an attacker can poison to redirect this token-bearing request elsewhere.
+      // Prefer explicit APP_ORIGIN, then Vercel-injected URLs, then the dev fallback.
+      const origin =
+        process.env.APP_ORIGIN ??
+        (process.env.VERCEL_PROJECT_PRODUCTION_URL
+          ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+          : process.env.VERCEL_URL
+            ? `https://${process.env.VERCEL_URL}`
+            : "http://localhost:3000");
+      data = await fetchTreeViaGraphQL(token, origin);
+    } catch {
+      err = LINK_DEAD;
     }
-    if (!data) return <LinkError message={err ?? "Este enlace no es válido."} />;
-    return <TreeExplorer tree={data} treeName={data.name} token={token} />;
+    if (!data) return <LinkError message={err ?? LINK_DEAD} />;
+    // The link's landing context (where the recipient lands + owner gating) comes
+    // from the same token; the GraphQL fetch already proved it valid, so this agrees.
+    const ctx = await getLinkContextAction(token);
+    const landing = ctx.ok ? ctx.data : { isOwner: false, seedPersonId: null };
+    return (
+      <TreeExplorer
+        tree={data}
+        treeName={data.name}
+        token={token}
+        treeId={treeId}
+        initialSelected={landing.seedPersonId}
+        isOwner={landing.isOwner}
+      />
+    );
   }
 
   const res = await getTreeAction(token);
-  if (!res.ok) return <LinkError message={res.error} />;
-  return <TreeExplorer tree={res.data} treeName={res.data.name} token={token} />;
+  if (!res.ok) return <LinkError message={LINK_DEAD} />;
+  // getTreeAction already validated the token; resolving the landing context (anchored
+  // seed person + owner flag) reads the SAME token, so the two views stay consistent.
+  const ctx = await getLinkContextAction(token);
+  const landing = ctx.ok ? ctx.data : { isOwner: false, seedPersonId: null };
+  return (
+    <TreeExplorer
+      tree={res.data}
+      treeName={res.data.name}
+      token={token}
+      treeId={treeId}
+      initialSelected={landing.seedPersonId}
+      isOwner={landing.isOwner}
+    />
+  );
 }
 
 function LinkError({ message }: { message: string }) {

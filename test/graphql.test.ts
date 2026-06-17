@@ -21,7 +21,12 @@ afterEach(() => reset());
 
 const yoga = makeYoga(buildContext);
 
-async function gql(query: string, token?: string) {
+type GqlResponse<T = Record<string, unknown>> = {
+  data?: T;
+  errors?: { message: string; extensions?: Record<string, unknown> }[];
+};
+
+async function gql<T = Record<string, unknown>>(query: string, token?: string) {
   const headers: Record<string, string> = { "content-type": "application/json" };
   if (token !== undefined) headers.authorization = `Bearer ${token}`;
   const res = await yoga.fetch("http://localhost/api/graphql", {
@@ -29,7 +34,7 @@ async function gql(query: string, token?: string) {
     headers,
     body: JSON.stringify({ query }),
   });
-  return res.json() as Promise<{ data?: any; errors?: { message: string; extensions?: any }[] }>;
+  return res.json() as Promise<GqlResponse<T>>;
 }
 
 // Build Pedro + María (couple) + their child Elsa in a fresh tree.
@@ -47,28 +52,41 @@ async function seedTree(name = "Familia Test") {
 describe("GraphQL read layer — happy path", () => {
   it("returns the flat tree for a valid token", async () => {
     const { token } = await seedTree();
-    const r = await gql(`{ tree { name people { id name } couples { id personA { id } personB { id } } parentChild { parentId childId } } }`, token);
+    const r = await gql<{
+      tree: {
+        name: string;
+        people: { id: string; name: string }[];
+        couples: { id: string }[];
+        parentChild: { parentId: string; childId: string }[];
+      };
+    }>(`{ tree { name people { id name } couples { id personA { id } personB { id } } parentChild { parentId childId } } }`, token);
     expect(r.errors).toBeUndefined();
-    expect(r.data.tree.name).toBe("Familia Test");
-    expect(r.data.tree.people).toHaveLength(3);
-    expect(r.data.tree.couples).toHaveLength(1);
-    expect(r.data.tree.parentChild).toHaveLength(2); // Elsa -> Pedro, Elsa -> María
+    expect(r.data!.tree.name).toBe("Familia Test");
+    expect(r.data!.tree.people).toHaveLength(3);
+    expect(r.data!.tree.couples).toHaveLength(1);
+    expect(r.data!.tree.parentChild).toHaveLength(2); // Elsa -> Pedro, Elsa -> María
   });
 
   it("traverses recursive parents on person(id)", async () => {
     const { token, elsaId } = await seedTree();
-    const r = await gql(`{ person(id: "${elsaId}") { name parents { name } } }`, token);
+    const r = await gql<{ person: { name: string; parents: { name: string }[] } }>(
+      `{ person(id: "${elsaId}") { name parents { name } } }`,
+      token,
+    );
     expect(r.errors).toBeUndefined();
-    expect(r.data.person.name).toBe("Elsa");
-    const parentNames = r.data.person.parents.map((p: { name: string }) => p.name).sort();
+    expect(r.data!.person.name).toBe("Elsa");
+    const parentNames = r.data!.person.parents.map((p) => p.name).sort();
     expect(parentNames).toEqual(["María", "Pedro"]);
   });
 
   it("person(id) returns null for an id not in the tree (no global-id leak)", async () => {
     const { token } = await seedTree();
-    const r = await gql(`{ person(id: "00000000-0000-0000-0000-000000000000") { name } }`, token);
+    const r = await gql<{ person: { name: string } | null }>(
+      `{ person(id: "00000000-0000-0000-0000-000000000000") { name } }`,
+      token,
+    );
     expect(r.errors).toBeUndefined();
-    expect(r.data.person).toBeNull();
+    expect(r.data!.person).toBeNull();
   });
 });
 
@@ -88,9 +106,12 @@ describe("GraphQL read layer — auth boundary", () => {
     const a = await seedTree("Familia A");
     const b = await seedTree("Familia B");
     // Ask tree A's endpoint for a person id that only exists in tree B.
-    const r = await gql(`{ person(id: "${b.pedroId}") { name } }`, a.token);
+    const r = await gql<{ person: { name: string } | null }>(
+      `{ person(id: "${b.pedroId}") { name } }`,
+      a.token,
+    );
     expect(r.errors).toBeUndefined();
-    expect(r.data.person).toBeNull();
+    expect(r.data!.person).toBeNull();
   });
 });
 
@@ -133,11 +154,15 @@ describe("GraphQL resolvers — pure over the preload (half-siblings, no DB)", (
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ query: `{ person(id: "pedro") { couples { personA { name } personB { name } children { name } } } }` }),
     });
-    const result = (await res.json()) as { data?: any; errors?: unknown[] };
+    const result = (await res.json()) as GqlResponse<{
+      person: {
+        couples: {
+          personA: { name: string }; personB: { name: string }; children: { name: string }[];
+        }[];
+      };
+    }>;
     expect(result.errors).toBeUndefined();
-    const couples = result.data.person.couples as {
-      personA: { name: string }; personB: { name: string }; children: { name: string }[];
-    }[];
+    const couples = result.data!.person.couples;
     expect(couples).toHaveLength(2);
     const withMaria = couples.find((c) => c.personB.name === "María" || c.personA.name === "María")!;
     const withAna = couples.find((c) => c.personB.name === "Ana" || c.personA.name === "Ana")!;

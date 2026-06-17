@@ -10,6 +10,7 @@ vi.mock("@/db", async () => {
 import { migrate, reset } from "./db";
 import { createTree, mintContributeLink, revokeLink } from "@/lib/links";
 import { requireTreeContext, requireOwner, TokenError } from "@/lib/auth";
+import { addPerson } from "@/lib/persons";
 
 beforeAll(() => migrate());
 afterEach(() => reset());
@@ -43,15 +44,17 @@ describe("capability token guard (T2)", () => {
   });
 
   it("anchored links carry their seed person and are NOT owners", async () => {
-    const { treeId } = await createTree("T");
+    const { treeId, token: ownerTok } = await createTree("T");
+    const ownerCtx = await requireTreeContext(ownerTok);
+    const seed = await addPerson(ownerCtx, { name: "Lucía" });
     const { token } = await mintContributeLink(treeId, {
       kind: "anchored",
-      seedPersonId: "00000000-0000-0000-0000-000000000000",
+      seedPersonId: seed.id,
     });
     const ctx = await requireTreeContext(token);
     expect(ctx.kind).toBe("anchored");
     expect(ctx.isOwner).toBe(false);
-    expect(ctx.seedPersonId).toBe("00000000-0000-0000-0000-000000000000");
+    expect(ctx.seedPersonId).toBe(seed.id);
   });
 
   it("requireOwner blocks a contribute link", async () => {

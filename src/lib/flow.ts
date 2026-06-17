@@ -26,6 +26,12 @@ export interface PersonRow {
   deathDay?: number | null;
   living: boolean;
   updatedAt: string | Date;
+  // Attribution marginalia: the creating link's label, resolved in getTree. Optional/
+  // backward-compatible — undefined when the link had no label (the open/owner links).
+  // NOTE: the parallel GraphQL read path (resolvers/graphqlClient) does NOT provide this
+  // yet — it's the non-default ?gql=1 path, intentionally out of scope (plan 012). The
+  // DetailCard's warm fallback covers a missing authorLabel there.
+  authorLabel?: string | null;
 }
 export interface Edge2 { id?: string; personA: string; personB: string }
 export interface PCEdge { parentId: string; childId: string }
